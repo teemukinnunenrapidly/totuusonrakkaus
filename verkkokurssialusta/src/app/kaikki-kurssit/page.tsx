@@ -10,7 +10,11 @@ import {
   Users,
   Calendar,
   Play,
-  Plus
+  Plus,
+  Eye,
+  EyeOff,
+  Edit,
+  X
 } from "lucide-react";
 import type { Course } from "@/types/database";
 
@@ -19,6 +23,11 @@ export default function KaikkiKurssitPage() {
   const [user, setUser] = useState<any>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishingCourseId, setPublishingCourseId] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -80,6 +89,43 @@ export default function KaikkiKurssitPage() {
     }
   };
 
+  const handlePublishCourse = async (courseId: string) => {
+    setPublishingCourseId(courseId);
+    setShowPublishModal(true);
+  };
+
+  const confirmPublishCourse = async () => {
+    if (!publishingCourseId) return;
+
+    try {
+      const response = await fetch('/api/admin/publish-course', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ courseId: publishingCourseId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Kurssin julkaisu epäonnistui');
+      }
+
+      // Päivitä kurssien lista
+      await loadCourses();
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error publishing course:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Tuntematon virhe');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
+    } finally {
+      setShowPublishModal(false);
+      setPublishingCourseId(null);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fi-FI');
   };
@@ -122,7 +168,7 @@ export default function KaikkiKurssitPage() {
               </div>
             </div>
             <button
-              onClick={() => console.log('Lisää uusi kurssi')}
+              onClick={() => router.push('/lisaa-uusi')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
             >
               <Plus size={20} />
@@ -144,9 +190,19 @@ export default function KaikkiKurssitPage() {
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     course.is_active 
                       ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
+                      : 'bg-yellow-100 text-yellow-800'
                   }`}>
-                    {course.is_active ? 'Aktiivinen' : 'Ei aktiivinen'}
+                    {course.is_active ? (
+                      <>
+                        <Eye className="h-3 w-3 mr-1" />
+                        Julkaistu
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Luonnos
+                      </>
+                    )}
                   </span>
                 </div>
 
@@ -177,10 +233,23 @@ export default function KaikkiKurssitPage() {
 
                 {/* Toiminnot */}
                 <div className="flex gap-2">
-                  <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
-                    <Play className="h-4 w-4" />
-                    Muokkaa kurssia
+                  <button 
+                    onClick={() => router.push(`/edit?courseId=${course.id}`)}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Muokkaa
                   </button>
+                  
+                  {!course.is_active && (
+                    <button 
+                      onClick={() => handlePublishCourse(course.id)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Julkaise
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -193,6 +262,67 @@ export default function KaikkiKurssitPage() {
             <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Ei kursseja vielä</h3>
             <p className="text-gray-600">Kursseja ei ole vielä luotu järjestelmään.</p>
+          </div>
+        )}
+
+        {/* Julkaisu-vahvistus modaali */}
+        {showPublishModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Eye className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Julkaise kurssi</h3>
+                    <p className="text-sm text-gray-600">Haluatko varmasti julkaista tämän kurssin?</p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setShowPublishModal(false);
+                      setPublishingCourseId(null);
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Peruuta
+                  </button>
+                  <button
+                    onClick={confirmPublishCourse}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                  >
+                    Julkaise
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success notifikaatio */}
+        {showSuccess && (
+          <div className="fixed top-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 shadow-lg z-50">
+            <div className="flex items-center">
+              <Eye className="h-5 w-5 text-green-600 mr-2" />
+              <span className="text-green-800 font-medium">
+                Kurssi julkaistu onnistuneesti!
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Error notifikaatio */}
+        {showError && (
+          <div className="fixed top-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg z-50">
+            <div className="flex items-center">
+              <Eye className="h-5 w-5 text-red-600 mr-2" />
+              <span className="text-red-800 font-medium">
+                Virhe kurssin julkaisussa: {errorMessage}
+              </span>
+            </div>
           </div>
         )}
       </div>

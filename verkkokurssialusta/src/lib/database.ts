@@ -100,7 +100,6 @@ export const getCourses = async (): Promise<Course[]> => {
     const { data, error } = await supabase
       .from('courses')
       .select('*')
-      .eq('is_active', true)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -115,13 +114,32 @@ export const getCourses = async (): Promise<Course[]> => {
   }
 };
 
+export const getActiveCourses = async (): Promise<Course[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching active courses:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error in getActiveCourses:', error);
+    return [];
+  }
+};
+
 export const getCourse = async (courseId: string): Promise<Course | null> => {
   try {
     const { data, error } = await supabase
       .from('courses')
       .select('*')
       .eq('id', courseId)
-      .eq('is_active', true)
       .single();
 
     if (error) {

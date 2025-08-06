@@ -32,9 +32,12 @@ export interface CourseSection {
   id: string;
   course_id: string;
   title: string;
-  description: string | null;
+  content: string | null;
+  vimeo_url: string | null;
+  downloadable_materials: string[];
   order_index: number;
   created_at: string;
+  updated_at: string;
 }
 
 export interface CourseVideo {
@@ -46,6 +49,7 @@ export interface CourseVideo {
   duration_seconds: number | null;
   order_index: number;
   created_at: string;
+  updated_at: string;
 }
 
 export interface UserProgress {
@@ -55,6 +59,7 @@ export interface UserProgress {
   watched_seconds: number;
   completed: boolean;
   last_watched_at: string;
+  updated_at: string;
 }
 
 // Yhdistetyt tyypit
@@ -98,18 +103,18 @@ export type Database = {
       };
       course_sections: {
         Row: CourseSection;
-        Insert: Omit<CourseSection, 'id' | 'created_at'>;
-        Update: Partial<Omit<CourseSection, 'id' | 'created_at'>>;
+        Insert: Omit<CourseSection, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<CourseSection, 'id' | 'created_at' | 'updated_at'>>;
       };
       course_videos: {
         Row: CourseVideo;
-        Insert: Omit<CourseVideo, 'id' | 'created_at'>;
-        Update: Partial<Omit<CourseVideo, 'id' | 'created_at'>>;
+        Insert: Omit<CourseVideo, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<CourseVideo, 'id' | 'created_at' | 'updated_at'>>;
       };
       user_progress: {
         Row: UserProgress;
-        Insert: Omit<UserProgress, 'id'>;
-        Update: Partial<Omit<UserProgress, 'id'>>;
+        Insert: Omit<UserProgress, 'id' | 'updated_at'>;
+        Update: Partial<Omit<UserProgress, 'id' | 'updated_at'>>;
       };
     };
   };
