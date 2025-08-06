@@ -1,0 +1,56 @@
+
+Master Prompt: Totuusonrakkaus-säännöt
+Tämä dokumentti määrittelee totuusonrakkaus-alustan tekniset säännöt ja arkkitehtuurin. Noudata näitä ohjeita kaikissa tehtävissä.
+
+1. Projektin päätavoite
+Rakennamme Headless-arkkitehtuurilla toimivan totuusonrakkaus-alustan. Järjestelmässä on kaksi pääosaa:
+
+WordPress: Toimii "päättömänä" sisällönhallintajärjestelmänä (CMS) kurssisisällölle.
+
+Next.js-sovellus: Hoitaa kaiken käyttäjälle näkyvän toiminnallisuuden, kuten oston, kirjautumisen ja kurssien katselun.
+
+2. Teknologiapino (Tech Stack)
+Frontend-kehys: Next.js (App Router)
+
+UI-kirjasto: NextUI
+
+Tyylit: Tailwind CSS
+
+Käyttäjähallinta & -data: Supabase (Auth, PostgreSQL, Storage)
+
+Sisällönhallinta (CMS): WordPress + ACF Pro
+
+WordPress API: WPGraphQL
+
+Maksunvälitys: Paytrail
+
+Videoiden hostaus: Vimeo
+
+Sähköpostit: Resend
+
+Hosting: Vercel
+
+3. Arkkitehtuurin pääperiaatteet
+Datan lähteet:
+
+Kurssisisältö (kurssit, osiot, videot, hinnat) haetaan AINA WordPressin GraphQL API:sta.
+
+Käyttäjädata (tunnukset, profiilit, ostot/ilmoittautumiset, kommentit) haetaan ja tallennetaan AINA Supabaseen.
+
+Backend-logiikka: Palvelinpuolen logiikka, kuten Paytrail-integraatio, toteutetaan Next.js API Routeilla.
+
+Käyttäjien tunnistus: Käytä AINA @supabase/auth-helpers-nextjs-kirjastoa sessioiden hallintaan.
+
+4. Koodauskäytännöt
+Käytä TypeScriptiä kaikkialla. Vältä any-tyyppiä.
+
+Käytä React Hook Formia ja Zodia kaikessa lomakkeiden käsittelyssä ja validoinnissa.
+
+Käytä Lucide React -kirjastoa ikoneille.
+
+Kaikki UI-komponentit rakennetaan NextUI-kirjaston komponenteilla.
+
+Tallenna ympäristömuuttujat (API-avaimet) .env.local-tiedostoon. Älä koskaan kovakoodaa avaimia koodiin.
+Kaikki UI-komponentit rakennetaan NextUI-kirjaston komponenteilla.
+
+Tallenna ympäristömuuttujat (API-avaimet) .env.local-tiedostoon. Älä koskaan kovakoodaa avaimia koodiin.
