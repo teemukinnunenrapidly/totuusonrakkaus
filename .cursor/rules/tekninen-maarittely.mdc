@@ -1,0 +1,114 @@
+Tekninen määrittely: KirjautumistoimintoVersio: 1.1 (Korjattu lomakkeen lähetys)Päiväys: 7.8.20251. YleiskuvausKirjautumistoiminto on toteutettu Next.js 15.4.5 -sovelluksessa käyttäen Supabase-autentikaatiota. Järjestelmä käyttää JWT-tokeneita ja HttpOnly-evästeitä turvalliseen session-hallintaan, ja se on suunniteltu skaalautuvaksi, turvalliseksi ja käyttäjäystävälliseksi.2. Arkkitehtuuri2.1. Frontend-komponentti (src/app/login/page.tsx)Lomakkeen logiikka ja validointi hoidetaan React Hook Formin ja Zodin avulla. On kriittistä yhdistää lomakkeen onSubmit-tapahtuma handleSubmit-funktioon.// Koko komponentin rakenne
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+// ...muut importit
+
+// 1. Määritellään Zod-skeema
+const loginSchema = z.object({
+  email: z.string().min(1, "Sähköposti on pakollinen").email("Syötä kelvollinen sähköpostiosoite"),
+  password: z.string().min(1, "Salasana on pakollinen"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  // 2. Alustetaan useForm
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  // ...muut tilamuuttujat (isLoading, message)
+
+  // 3. Tämä on meidän logiikkamme, jonka RHF kutsuu
+  const handleSubmitForm = async (data: LoginFormData) => {
+    setIsLoading(true);
+    setMessage(null);
+    
+    try {
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+      
+      if (error) {
+        setMessage({ type: "error", text: "Virheellinen sähköposti tai salasana." });
+        return;
+      }
+      
+      router.push("/my-courses");
+    } catch (error) {
+      setMessage({ type: "error", text: "Odottamaton virhe tapahtui." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 4. JSX-rakenne, jossa onSubmit on kytketty
+  return (
+    <form onSubmit={handleSubmit(handleSubmitForm)}>
+      {/* Input-kentät käyttävät `register`-funktiota */}
+      <Input 
+        {...register("email")}
+        label="Sähköposti"
+        errorMessage={errors.email?.message}
+      />
+      <Input 
+        {...register("password")}
+        type="password"
+        label="Salasana"
+        errorMessage={errors.password?.message}
+      />
+      <Button type="submit" isLoading={isLoading}>
+        Kirjaudu sisään
+      </Button>
+    </form>
+  );
+}
+2.2. Supabase-konfiguraatio (src/lib/supabase.ts)Selainpuolen Supabase-client alustetaan keskitetysti.import { createBrowserClient } from '@supabase/ssr'
+
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+
+export const supabase = createClient()
+2.3. Ympäristömuuttujat (.env.local)Tärkeä turvallisuushuomio: SUPABASE_SERVICE_ROLE_KEY on erittäin salainen avain, jota tulee käyttää vain palvelinpuolen koodissa. Sitä ei saa koskaan paljastaa selaimelle.NEXT_PUBLIC_SUPABASE_URL=https://gsgbqoryxxoepublcrqx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_2EPNhgG_4kmvBkhzpL1wYQ_vAgctYQx
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_8lwzwnFOFugSgeayH9Pajw_g3IbJQft
+3. Session-hallintaJWT-tokenitAccess Token: Lyhytikäinen (esim. 1 tunti), käytetään API-kutsuihin.Refresh Token: Pitkäikäinen, käytetään access_tokenin turvalliseen uusimiseen.Automaattinen tokenin uusiminen@supabase/ssr-kirjasto hoitaa tokenien uusimisen automaattisesti taustalla. onAuthStateChange-kuuntelijaa voidaan käyttää reagoimaan näihin tapahtumiin.// Session listener
+const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'TOKEN_REFRESHED') {
+    // Token päivittyi automaattisesti
+  }
+});
+4. TietokantarakenneKäyttäjätiedotauth.users: Supabasen sisäinen käyttäjätaulu (sähköposti, salasanan tiiviste).public.user_profiles: Sovelluksen käyttäjäprofiilit (rooli, nimi, puhelin).Roolipohjainen pääsynhallinta (RLS)Määritellään SQL-säännöt, jotka rajoittavat pääsyä dataan.-- RLS-politiikka: Käyttäjät näkevät oman profiilinsa
+CREATE POLICY "Users can view own profile" ON profiles
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- RLS-politiikka: Adminit näkevät kaikki profiilit
+CREATE POLICY "Admins can view all profiles" ON profiles
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE user_id = auth.uid() AND role = 'admin'
+    )
+  );
+5. API-endpointitSalasanan palautus (src/app/api/admin/reset-password/route.ts)Tämä API-reitti käyttää service_role_key-avainta suorittaakseen hallinnollisia toimintoja.export async function POST(request: NextRequest) {
+  const { email, newPassword } = await request.json();
+  
+  // Hae käyttäjän ID
+  const { data: users } = await supabase.auth.admin.listUsers();
+  const user = users.users.find(u => u.email === email);
+  
+  // Päivitä salasana
+  const { data, error } = await supabase.auth.admin.updateUserById(
+    user.id,
+    { password: newPassword }
+  );
+}
+6. TurvallisuusominaisuudetHttpOnly-evästeet: Tokenit tallennetaan HttpOnly-evästeisiin, mikä estää XSS-hyökkäyksiä.Row Level Security (RLS): Tietokantatasoiset käyttöoikeudet varmistavat, että käyttäjät näkevät vain heille kuuluvan datan.Service Role Key: Admin-oikeuksia vaativat toiminnot suoritetaan vain turvallisesti palvelinpuolella.7. LisäominaisuudetVälilehtien välillä siirtyminen: sessionStorage ja focus-tapahtumakuuntelija varmistavat, että autentikoinnin tila pysyy ajan tasalla, kun käyttäjä vaihtaa selainvälilehteä.Error tracking: Kaikki virheet lokitetaan konsoliin ja käyttäjälle näytetään ystävällisiä virheilmoituksia.

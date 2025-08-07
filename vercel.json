@@ -1,3 +1,4 @@
 {
-  "rootDirectory": "verkkokurssialusta"
+  "buildCommand": "cd verkkokurssialusta && npm run build",
+  "outputDirectory": "verkkokurssialusta/.next"
 }
