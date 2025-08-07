@@ -119,20 +119,29 @@ export default function AsiakkaatPage() {
     }
 
     try {
-      const { error } = await supabase.auth.admin.deleteUser(userId);
+      console.log('Attempting to delete user:', userId);
       
-      if (error) {
-        console.error('Error deleting user:', error);
-        alert('Virhe käyttäjän poistossa');
-        return;
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Käyttäjän poisto epäonnistui');
       }
 
+      console.log('User deleted successfully');
+      
       // Päivitä käyttäjien lista
       await loadData();
       alert('Käyttäjä poistettu onnistuneesti');
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('Virhe käyttäjän poistossa');
+      alert(`Virhe käyttäjän poistossa: ${error instanceof Error ? error.message : 'Tuntematon virhe'}`);
     }
   };
 
