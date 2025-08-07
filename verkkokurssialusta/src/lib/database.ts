@@ -12,6 +12,8 @@ import type {
 // Käyttäjäprofiilit
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
+    console.log('Fetching user profile for:', userId);
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -21,16 +23,18 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
     if (error) {
       // Jos profiilia ei löydy, palauta null eikä heitä virhettä
       if (error.code === 'PGRST116') {
+        console.log('User profile not found for:', userId);
         return null;
       }
       console.error('Error fetching user profile:', error);
-      return null;
+      throw error; // Heitä virhe eteenpäin paremman debuggausta varten
     }
 
+    console.log('User profile found:', data);
     return data;
   } catch (error) {
     console.error('Unexpected error in getUserProfile:', error);
-    return null;
+    throw error; // Heitä virhe eteenpäin
   }
 };
 
@@ -57,13 +61,23 @@ export const createUserProfile = async (userId: string, role: 'admin' | 'student
 // Uusi funktio: Luo profiili jos sitä ei ole
 export const createUserProfileIfNotExists = async (userId: string, role: 'admin' | 'student' = 'student'): Promise<UserProfile | null> => {
   try {
+    console.log('Checking if user profile exists for:', userId);
+    
     // Yritä ensin hakea olemassa oleva profiili
     let profile = await getUserProfile(userId);
     
     // Jos profiilia ei ole, luo se
     if (!profile) {
-      console.log('Creating new user profile for:', userId);
+      console.log('Creating new user profile for:', userId, 'with role:', role);
       profile = await createUserProfile(userId, role);
+      
+      if (profile) {
+        console.log('User profile created successfully:', profile);
+      } else {
+        console.error('Failed to create user profile for:', userId);
+      }
+    } else {
+      console.log('User profile already exists:', profile);
     }
     
     return profile;

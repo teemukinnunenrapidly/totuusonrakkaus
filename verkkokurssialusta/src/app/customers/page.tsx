@@ -48,35 +48,72 @@ export default function AsiakkaatPage() {
   const router = useRouter();
 
   useEffect(() => {
+    let isMounted = true;
+    
+    const initializeSession = async () => {
+      // Aseta session storage jos se ei ole vielä asetettu
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && !sessionStorage.getItem('supabase.auth.token')) {
+        sessionStorage.setItem('supabase.auth.token', 'active');
+      }
+    };
+    
     const checkAuth = async () => {
+      if (!isMounted) return;
+      
       try {
-        // Tarkista nykyinen sessio
+        setIsLoading(true);
+        
+        // Tarkista session storage ensin
+        const storedAuth = sessionStorage.getItem('supabase.auth.token');
+        if (!storedAuth) {
+          console.log('No stored auth token');
+          router.push('/login');
+          return;
+        }
+        
+        // Tarkista sessio ensin ilman timeoutia
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (error) {
-          console.error('Auth check error:', error);
-          router.push('/login');
-          return;
-        }
-
-        // Jos ei ole sessiota, ohjaa kirjautumissivulle
-        if (!session) {
-          router.push('/login');
-          return;
-        }
-
-        // Luo profiili jos sitä ei ole ja tarkista rooli
-        const profile = await createUserProfileIfNotExists(session.user.id, 'student');
+        if (!isMounted) return;
         
-        if (!profile) {
-          console.error('Failed to get/create user profile');
-          router.push('/my-courses');
+        if (error) {
+          console.error('Session error:', error);
+          router.push('/login');
           return;
         }
 
-        // Tarkista onko käyttäjä ylläpitäjä
-        if (profile.role !== 'admin') {
-          console.log('User is not admin, redirecting to courses');
+        if (!session) {
+          console.log('No session found');
+          router.push('/login');
+          return;
+        }
+
+        // Jos sessio on vanha, yritä uusia token
+        if (session.expires_at && new Date(session.expires_at * 1000) < new Date()) {
+          console.log('Session expired, refreshing...');
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (!isMounted) return;
+          
+          if (refreshError || !refreshData.session) {
+            console.error('Failed to refresh session:', refreshError);
+            router.push('/login');
+            return;
+          }
+        }
+
+        // Tarkista käyttäjän rooli
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (!isMounted) return;
+
+        if (profileError || !profile || profile.role !== 'admin') {
+          console.log('User is not admin');
           router.push('/my-courses');
           return;
         }
@@ -87,15 +124,85 @@ export default function AsiakkaatPage() {
         // Hae kaikki käyttäjät ja kurssit
         await loadData();
       } catch (error) {
+        if (!isMounted) return;
+        
         console.error('Auth check error:', error);
+        
+        // Jos on token-ongelma, yritä uusia sessio
+        if (error instanceof Error && error.message.includes('JWT')) {
+          console.log('JWT error, attempting to refresh session...');
+          try {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (!refreshError && refreshData.session) {
+              // Yritä auth-tarkistusta uudelleen
+              setTimeout(() => checkAuth(), 1000);
+              return;
+            }
+          } catch (refreshError) {
+            console.error('Failed to refresh session:', refreshError);
+          }
+        }
+        
         router.push('/login');
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    checkAuth();
-  }, [router]);
+    // Lisää session listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      
+      console.log('Auth state changed:', event, session?.user?.email);
+      
+      if (event === 'SIGNED_OUT') {
+        sessionStorage.removeItem('supabase.auth.token');
+        router.push('/login');
+        return;
+      }
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Päivitä session storage
+        if (session) {
+          sessionStorage.setItem('supabase.auth.token', 'active');
+        }
+        
+        // Token päivittyi, tarkista admin-oikeudet uudelleen
+        if (session) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .single();
+            
+          if (profile?.role !== 'admin') {
+            router.push('/my-courses');
+          }
+        }
+      }
+    });
+
+    // Lisää focus event listener
+    const handleFocus = () => {
+      console.log('Tab became active, rechecking auth...');
+      if (isMounted) {
+        checkAuth();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    // Alusta sessio ja tarkista auth
+    initializeSession().then(() => checkAuth());
+    
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   const loadData = async () => {
     try {

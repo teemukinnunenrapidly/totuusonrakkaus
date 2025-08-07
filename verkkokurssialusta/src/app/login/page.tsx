@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+// Zod schema validointiin
 const loginSchema = z.object({
   email: z.string().min(1, "Sähköposti on pakollinen").email("Syötä kelvollinen sähköpostiosoite"),
   password: z.string().min(1, "Salasana on pakollinen"),
@@ -23,6 +24,7 @@ export default function KirjauduPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const router = useRouter();
 
+  // React Hook Form konfiguraatio
   const {
     register,
     handleSubmit,
@@ -33,6 +35,7 @@ export default function KirjauduPage() {
 
   const handleToggleVisibility = () => setIsVisible(!isVisible);
 
+  // Google OAuth kirjautuminen
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     setMessage(null);
@@ -61,38 +64,95 @@ export default function KirjauduPage() {
     }
   };
 
+  // Pääasiallinen kirjautumisfunktio
   const handleSubmitForm = async (data: LoginFormData) => {
+    console.log("=== FUNKTIO ALKAA ===");
     setIsLoading(true);
     setMessage(null);
 
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
+      console.log("=== KIRJAUTUMISEN ALKAA ===");
+      console.log("Email:", data.email);
+      console.log("Password length:", data.password.length);
+      console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log("Supabase Anon Key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "LÖYTYI" : "PUUTTUU");
+      
+      console.log("Yritetään kirjautua sisään...");
+      
+      // Supabase auth kutsu timeoutilla
+      const authPromise = supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login timeout')), 15000)
+      );
+      
+      console.log("Odotetaan Supabase-vastausta...");
+      const { data: authData, error } = await Promise.race([authPromise, timeoutPromise]) as any;
+
+      console.log("Supabase vastaus:", { authData, error });
 
       if (error) {
+        console.error("Kirjautumisvirhe:", error);
+        console.error("Virhe koodi:", error.code);
+        console.error("Virhe viesti:", error.message);
+        
+        // Error handling eri virhetyypeille
+        let errorMessage = "Kirjautumisvirhe. Yritä uudelleen.";
+        
+        if (error.message.includes("Invalid login credentials")) {
+          errorMessage = "Väärä sähköposti tai salasana. Tarkista tiedot ja yritä uudelleen.";
+        } else if (error.message.includes("Email not confirmed")) {
+          errorMessage = "Sähköpostiosoite ei ole vahvistettu. Tarkista sähköpostisi.";
+        } else if (error.message.includes("Too many requests")) {
+          errorMessage = "Liian monta kirjautumisyritystä. Odota hetki ja yritä uudelleen.";
+        } else {
+          errorMessage = `Kirjautumisvirhe: ${error.message}`;
+        }
+        
         setMessage({
           type: "error",
-          text: "Väärä sähköposti tai salasana",
+          text: errorMessage,
         });
+        setIsLoading(false);
         return;
       }
 
+      console.log("Kirjautuminen onnistui:", authData);
+      console.log("Käyttäjä ID:", authData.user?.id);
+      console.log("Käyttäjä email:", authData.user?.email);
+      
+      // Pysäytä loading heti
+      setIsLoading(false);
+      
       setMessage({
         type: "success",
         text: "Kirjautuminen onnistui! Ohjataan kurssisivulle...",
       });
       
-      setTimeout(() => {
-        router.push("/my-courses");
-      }, 1500);
+      // Ohjaa kurssisivulle välittömästi
+      console.log("Ohjataan /my-courses sivulle...");
+      router.push("/my-courses");
+      
     } catch (error) {
+      console.error("Kirjautumisessa tapahtui virhe:", error);
+      
+      // Exception handling
+      let errorMessage = "Kirjautumisessa tapahtui virhe. Yritä uudelleen.";
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          errorMessage = "Kirjautuminen kesti liian kauan. Tarkista internet-yhteys ja yritä uudelleen.";
+        } else {
+          errorMessage = `Virhe: ${error.message}`;
+        }
+      }
+      
       setMessage({
         type: "error",
-        text: "Kirjautumisessa tapahtui virhe. Yritä uudelleen.",
+        text: errorMessage,
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -151,8 +211,14 @@ export default function KirjauduPage() {
             </div>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit(handleSubmitForm)} className="space-y-6">
+          {/* Form - React Hook Form kytketty onSubmit-tapahtumaan */}
+          <form 
+            onSubmit={(e) => {
+              console.log("=== FORM SUBMIT TAPAHTUI ===");
+              handleSubmit(handleSubmitForm)(e);
+            }} 
+            className="space-y-6"
+          >
             <div className="space-y-2">
               <label 
                 htmlFor="email" 
@@ -215,7 +281,7 @@ export default function KirjauduPage() {
               )}
             </div>
 
-            {/* Message */}
+            {/* Message - Error/Success viestit */}
             {message && (
               <div
                 className={`p-4 rounded-lg border transition-all duration-300 ${

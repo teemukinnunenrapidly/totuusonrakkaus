@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, LogIn, LogOut, Users } from "lucide-react";
+import { BookOpen, LogIn, LogOut, Users, ChevronDown, User, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -13,6 +13,7 @@ export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -82,12 +83,26 @@ export default function Header() {
       if (error) {
         console.error('Error signing out:', error);
       } else {
+        setShowUserMenu(false);
         router.push('/login');
       }
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
+
+  // Sulje käyttäjävalikko kun klikataan ulkopuolelta
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.user-menu')) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   // Näytä loading-tila kun tarkistetaan kirjautumista
   if (isLoading) {
@@ -127,13 +142,13 @@ export default function Header() {
             <>
               {/* Navigaatiovälilehdet kirjautuneelle käyttäjälle */}
               <div className="flex items-center gap-2">
-                              <Link 
-                href={isAdmin ? "/courses" : "/my-courses"}
-                className="px-3 py-2 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-colors duration-200"
-                aria-label={isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
-              >
-                {isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
-              </Link>
+                <Link 
+                  href={isAdmin ? "/courses" : "/my-courses"}
+                  className="px-3 py-2 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-colors duration-200"
+                  aria-label={isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
+                >
+                  {isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
+                </Link>
                 
                 {/* Asiakkaat-välilehti vain ylläpitäjille */}
                 {isAdmin && (
@@ -148,15 +163,47 @@ export default function Header() {
                 )}
               </div>
               
-              {/* Uloskirjautumisnappi */}
-              <button 
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-all duration-200"
-                aria-label="Kirjaudu ulos"
-              >
-                <LogOut className="w-4 h-4" />
-                Kirjaudu ulos
-              </button>
+              {/* Käyttäjän tiedot ja alasvetovalikko */}
+              <div className="relative user-menu">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium rounded-lg transition-all duration-200"
+                  aria-label="Käyttäjävalikko"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="hidden sm:inline">{user?.email}</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Alasvetovalikko */}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">{user?.email}</p>
+                      <p className="text-xs text-gray-500">{isAdmin ? 'Ylläpitäjä' : 'Oppilas'}</p>
+                    </div>
+                    
+                    <Link 
+                      href="/profile"
+                      className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <User className="w-4 h-4" />
+                      Omat tiedot
+                    </Link>
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors duration-200 w-full text-left"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Kirjaudu ulos
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             // Kirjautumattomalle käyttäjälle: kirjautumisnappi

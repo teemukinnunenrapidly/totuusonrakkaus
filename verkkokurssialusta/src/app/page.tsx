@@ -2,61 +2,40 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { createUserProfileIfNotExists } from "@/lib/database";
 
 export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const checkAuthAndRedirect = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          // Jos ei ole kirjautunut, ohjaa kirjautumissivulle
-          router.push('/login');
-          return;
-        }
-
-        // Luo profiili jos sitä ei ole ja tarkista rooli
-        const profile = await createUserProfileIfNotExists(session.user.id, 'student');
-        
-        if (profile) {
-          // Ohjaa roolin mukaan
-          if (profile.role === 'admin') {
-            router.push('/courses');
-          } else {
-            router.push('/my-courses');
-          }
-        } else {
-          // Jos profiilia ei voitu luoda, ohjaa omat-kurssit
-          router.push('/my-courses');
-        }
-      } catch (error) {
-        console.error('Error checking auth:', error);
-        router.push('/login');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuthAndRedirect();
+    console.log("Etusivu latautuu...");
+    
+    // Väliaikaisesti ohjaa suoraan login-sivulle
+    setTimeout(() => {
+      console.log("Ohjataan login-sivulle...");
+      router.push('/login');
+    }, 1000);
+    
   }, [router]);
 
-  // Näytä loading-tila kun tarkistetaan kirjautumista
+  // Näytä loading-tila
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Tarkistetaan kirjautumista...</p>
+          <p className="text-gray-600">Ladataan sivustoa...</p>
         </div>
       </div>
     );
   }
 
-  // Tämä ei pitäisi koskaan näkyä, koska ohjaus tapahtuu loading-tilan aikana
-  return null;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold mb-4">Totuusonrakkaus</h1>
+        <p className="text-gray-600">Ladataan...</p>
+      </div>
+    </div>
+  );
 }

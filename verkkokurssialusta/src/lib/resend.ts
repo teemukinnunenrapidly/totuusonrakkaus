@@ -4,9 +4,16 @@ export const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendPasswordResetEmail = async (email: string, resetLink: string) => {
   try {
+    // Testauksen aikana lähetetään vain omaan sähköpostiin
+    const testEmail = 'teemu.kinnunen@rapidly.fi';
+    const actualEmail = email;
+    
+    console.log(`Attempting to send password reset email to: ${actualEmail}`);
+    console.log(`Test mode: sending to ${testEmail} instead`);
+    
     const { data, error } = await resend.emails.send({
       from: 'Totuusonrakkaus <onboarding@resend.dev>',
-      to: [email],
+      to: [testEmail], // Testauksen aikana vain omaan sähköpostiin
       subject: 'Salasanan palautus - Totuusonrakkaus',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -22,6 +29,13 @@ export const sendPasswordResetEmail = async (email: string, resetLink: string) =
               Olet pyytänyt salasanan palautusta Totuusonrakkaus-tilillesi. 
               Klikkaa alla olevaa painiketta asettaaksesi uuden salasanan.
             </p>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="color: #856404; margin: 0; font-size: 14px;">
+                <strong>Testitila:</strong> Tämä viesti lähetettiin testauksen aikana. 
+                Oikea vastaanottaja: ${actualEmail}
+              </p>
+            </div>
             
             <div style="text-align: center; margin: 30px 0;">
               <a href="${resetLink}" 
@@ -51,9 +65,9 @@ export const sendPasswordResetEmail = async (email: string, resetLink: string) =
             </p>
           </div>
           
-                      <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
-              <p>© 2024 Totuusonrakkaus. Kaikki oikeudet pidätetään.</p>
-            </div>
+          <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
+            <p>© 2024 Totuusonrakkaus. Kaikki oikeudet pidätetään.</p>
+          </div>
         </div>
       `,
     });
@@ -63,6 +77,7 @@ export const sendPasswordResetEmail = async (email: string, resetLink: string) =
       throw new Error('Sähköpostin lähetys epäonnistui');
     }
 
+    console.log('Password reset email sent successfully');
     return data;
   } catch (error) {
     console.error('Email sending error:', error);

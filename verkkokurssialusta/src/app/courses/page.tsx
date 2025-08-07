@@ -14,7 +14,8 @@ import {
   Eye,
   EyeOff,
   Edit,
-  X
+  X,
+  ExternalLink
 } from "lucide-react";
 import type { Course } from "@/types/database";
 
@@ -126,6 +127,11 @@ export default function KaikkiKurssitPage() {
     }
   };
 
+  const handlePreviewCourse = (courseId: string) => {
+    // Avaa kurssi uudessa välilehdessä
+    window.open(`/course/${courseId}`, '_blank');
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fi-FI');
   };
@@ -177,8 +183,8 @@ export default function KaikkiKurssitPage() {
           </div>
         </div>
 
-        {/* Kurssien grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Kurssien grid - 2 per rivi */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {courses.map((course) => (
             <div key={course.id} className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-300">
               <div className="p-6">
@@ -231,11 +237,19 @@ export default function KaikkiKurssitPage() {
                   </div>
                 </div>
 
-                {/* Toiminnot */}
+                {/* Toiminnot - 3 painiketta */}
                 <div className="flex gap-2">
                   <button 
+                    onClick={() => handlePreviewCourse(course.id)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Esikatselu
+                  </button>
+                  
+                  <button 
                     onClick={() => router.push(`/edit-course?courseId=${course.id}`)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200 text-sm"
                   >
                     <Edit className="h-4 w-4" />
                     Muokkaa
@@ -244,7 +258,7 @@ export default function KaikkiKurssitPage() {
                   {!course.is_active && (
                     <button 
                       onClick={() => handlePublishCourse(course.id)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm"
                     >
                       <Eye className="h-4 w-4" />
                       Julkaise
