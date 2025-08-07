@@ -128,7 +128,7 @@ export default function AsetaUusiSalasanaPage() {
       reset();
       
       setTimeout(() => {
-        router.push("/kirjaudu");
+        router.push("/login");
       }, 2000);
     } catch (error) {
       console.error('Reset password error:', error);
@@ -175,7 +175,7 @@ export default function AsetaUusiSalasanaPage() {
             
             <div className="text-center">
               <Link 
-                href="/unohdin-salasanan" 
+                href="/reset-password" 
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
               >
                 Pyydä uusi palautuslinkki
@@ -306,7 +306,7 @@ export default function AsetaUusiSalasanaPage() {
           {/* Links */}
           <div className="mt-8 text-center">
             <Link 
-              href="/kirjaudu" 
+              href="/login" 
               className="text-sm text-blue-600 hover:text-blue-700 underline transition-colors duration-200"
               aria-label="Palaa kirjautumissivulle"
             >

@@ -82,7 +82,7 @@ export default function Header() {
       if (error) {
         console.error('Error signing out:', error);
       } else {
-        router.push('/kirjaudu');
+        router.push('/login');
       }
     } catch (error) {
       console.error('Error signing out:', error);
@@ -127,18 +127,18 @@ export default function Header() {
             <>
               {/* Navigaatiovälilehdet kirjautuneelle käyttäjälle */}
               <div className="flex items-center gap-2">
-                <Link 
-                  href={isAdmin ? "/kaikki-kurssit" : "/omat-kurssit"}
-                  className="px-3 py-2 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-colors duration-200"
-                  aria-label={isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
-                >
-                  {isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
-                </Link>
+                              <Link 
+                href={isAdmin ? "/courses" : "/my-courses"}
+                className="px-3 py-2 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-colors duration-200"
+                aria-label={isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
+              >
+                {isAdmin ? "Kaikki kurssit" : "Omat kurssit"}
+              </Link>
                 
                 {/* Asiakkaat-välilehti vain ylläpitäjille */}
                 {isAdmin && (
                   <Link 
-                    href="/asiakkaat"
+                    href="/customers"
                     className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-colors duration-200"
                     aria-label="Asiakkaat"
                   >
@@ -160,7 +160,7 @@ export default function Header() {
             </>
           ) : (
             // Kirjautumattomalle käyttäjälle: kirjautumisnappi
-            <Link href="/kirjaudu">
+            <Link href="/login">
               <button 
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
                 aria-label="Kirjaudu sisään"

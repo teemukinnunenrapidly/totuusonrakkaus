@@ -55,13 +55,13 @@ export default function AsiakkaatPage() {
         
         if (error) {
           console.error('Auth check error:', error);
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
         // Jos ei ole sessiota, ohjaa kirjautumissivulle
         if (!session) {
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
@@ -70,14 +70,14 @@ export default function AsiakkaatPage() {
         
         if (!profile) {
           console.error('Failed to get/create user profile');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
         // Tarkista onko käyttäjä ylläpitäjä
         if (profile.role !== 'admin') {
           console.log('User is not admin, redirecting to courses');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
@@ -88,7 +88,7 @@ export default function AsiakkaatPage() {
         await loadData();
       } catch (error) {
         console.error('Auth check error:', error);
-        router.push('/kirjaudu');
+        router.push('/login');
       } finally {
         setIsLoading(false);
       }

@@ -42,13 +42,13 @@ export default function LisaaUusiPage() {
         
         if (error) {
           console.error('Auth check error:', error);
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
         // Jos ei ole sessiota, ohjaa kirjautumissivulle
         if (!session) {
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
@@ -57,23 +57,23 @@ export default function LisaaUusiPage() {
         
         if (!profile) {
           console.error('Failed to get/create user profile');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
         // Tarkista onko käyttäjä ylläpitäjä
         if (profile.role !== 'admin') {
           console.log('User is not admin, redirecting to own courses');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
         setUser(session.user);
         setIsAdmin(true);
-      } catch (error) {
-        console.error('Auth check error:', error);
-        router.push('/kirjaudu');
-      } finally {
+              } catch (error) {
+          console.error('Auth check error:', error);
+          router.push('/login');
+        } finally {
         setIsLoading(false);
       }
     };
@@ -124,7 +124,7 @@ export default function LisaaUusiPage() {
       
       // Ohjaa kaikki-kurssit sivulle 3 sekunnin jälkeen
       setTimeout(() => {
-        router.push('/kaikki-kurssit');
+        router.push('/courses');
       }, 3000);
       
     } catch (error) {
@@ -167,7 +167,7 @@ export default function LisaaUusiPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link 
-                href="/kaikki-kurssit"
+                href="/courses"
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors duration-200"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -288,7 +288,7 @@ export default function LisaaUusiPage() {
             {/* Painikkeet */}
             <div className="flex gap-4 pt-6">
               <Link
-                href="/kaikki-kurssit"
+                href="/courses"
                 className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-center"
               >
                 Peruuta

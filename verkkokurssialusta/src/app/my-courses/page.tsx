@@ -18,13 +18,13 @@ export default function OmatKurssitPage() {
         
         if (error) {
           console.error('Auth check error:', error);
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
         // Jos ei ole sessiota, ohjaa kirjautumissivulle
         if (!session) {
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
@@ -32,7 +32,7 @@ export default function OmatKurssitPage() {
         setUser(session.user);
       } catch (error) {
         console.error('Auth check error:', error);
-        router.push('/kirjaudu');
+        router.push('/login');
       } finally {
         setIsLoading(false);
       }

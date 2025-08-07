@@ -169,7 +169,7 @@ export default function UnohdinSalasananPage() {
           {/* Back to login */}
           <div className="mt-8 text-center">
             <Link 
-              href="/kirjaudu"
+              href="/login"
               className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 underline transition-colors duration-200"
               aria-label="Takaisin kirjautumissivulle"
             >

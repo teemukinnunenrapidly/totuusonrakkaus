@@ -16,7 +16,7 @@ export default function HomePage() {
         
         if (!session) {
           // Jos ei ole kirjautunut, ohjaa kirjautumissivulle
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
@@ -26,17 +26,17 @@ export default function HomePage() {
         if (profile) {
           // Ohjaa roolin mukaan
           if (profile.role === 'admin') {
-            router.push('/kaikki-kurssit');
+            router.push('/courses');
           } else {
-            router.push('/omat-kurssit');
+            router.push('/my-courses');
           }
         } else {
           // Jos profiilia ei voitu luoda, ohjaa omat-kurssit
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
         }
       } catch (error) {
         console.error('Error checking auth:', error);
-        router.push('/kirjaudu');
+        router.push('/login');
       } finally {
         setIsLoading(false);
       }

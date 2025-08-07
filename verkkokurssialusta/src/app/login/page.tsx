@@ -41,7 +41,7 @@ export default function KirjauduPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/omat-kurssit`
+          redirectTo: `${window.location.origin}/my-courses`
         }
       });
 
@@ -85,7 +85,7 @@ export default function KirjauduPage() {
       });
       
       setTimeout(() => {
-        router.push("/omat-kurssit");
+        router.push("/my-courses");
       }, 1500);
     } catch (error) {
       setMessage({
@@ -244,7 +244,7 @@ export default function KirjauduPage() {
           {/* Links */}
           <div className="mt-8 text-center">
             <Link 
-              href="/unohdin-salasanan" 
+              href="/reset-password" 
               className="text-sm text-blue-600 hover:text-blue-700 underline transition-colors duration-200"
               aria-label="Unohditko salasanasi? Siirry salasanan palautussivulle"
             >

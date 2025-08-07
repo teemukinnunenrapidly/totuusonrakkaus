@@ -205,14 +205,14 @@ export default function EditPage() {
         
         if (error) {
           console.error('Auth check error:', error);
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
         // Jos ei ole sessiota, ohjaa kirjautumissivulle
         if (!session) {
           console.log('🔍 Ei sessiota, ohjataan kirjautumissivulle');
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
@@ -223,14 +223,14 @@ export default function EditPage() {
         
         if (!profile) {
           console.error('Failed to get/create user profile');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
         // Tarkista onko käyttäjä ylläpitäjä
         if (profile.role !== 'admin') {
           console.log('User is not admin, redirecting to own courses');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
@@ -248,7 +248,7 @@ export default function EditPage() {
         }
       } catch (error) {
         console.error('Auth check error:', error);
-        router.push('/kirjaudu');
+        router.push('/login');
         setIsLoading(false);
       }
     };
@@ -638,7 +638,7 @@ export default function EditPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">Kurssia ei löytynyt</h3>
           <p className="text-gray-600">Pyydettyä kurssia ei ole olemassa.</p>
           <Link 
-            href="/kaikki-kurssit"
+            href="/courses"
             className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -657,7 +657,7 @@ export default function EditPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link 
-                href="/kaikki-kurssit"
+                href="/courses"
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors duration-200"
               >
                 <ArrowLeft className="h-5 w-5" />

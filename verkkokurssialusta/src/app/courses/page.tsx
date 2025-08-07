@@ -38,13 +38,13 @@ export default function KaikkiKurssitPage() {
         
         if (error) {
           console.error('Auth check error:', error);
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
         // Jos ei ole sessiota, ohjaa kirjautumissivulle
         if (!session) {
-          router.push('/kirjaudu');
+          router.push('/login');
           return;
         }
 
@@ -53,14 +53,14 @@ export default function KaikkiKurssitPage() {
         
         if (!profile) {
           console.error('Failed to get/create user profile');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
         // Tarkista onko käyttäjä ylläpitäjä
         if (profile.role !== 'admin') {
           console.log('User is not admin, redirecting to own courses');
-          router.push('/omat-kurssit');
+          router.push('/my-courses');
           return;
         }
 
@@ -71,7 +71,7 @@ export default function KaikkiKurssitPage() {
         await loadCourses();
       } catch (error) {
         console.error('Auth check error:', error);
-        router.push('/kirjaudu');
+        router.push('/login');
       } finally {
         setIsLoading(false);
       }
@@ -168,7 +168,7 @@ export default function KaikkiKurssitPage() {
               </div>
             </div>
             <button
-              onClick={() => router.push('/lisaa-uusi')}
+              onClick={() => router.push('/add-course')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
             >
               <Plus size={20} />
@@ -234,7 +234,7 @@ export default function KaikkiKurssitPage() {
                 {/* Toiminnot */}
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => router.push(`/edit?courseId=${course.id}`)}
+                    onClick={() => router.push(`/edit-course?courseId=${course.id}`)}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200"
                   >
                     <Edit className="h-4 w-4" />
