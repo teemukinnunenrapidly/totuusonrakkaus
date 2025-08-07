@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { createUserProfileIfNotExists, getAllUsersWithProfiles, getAllUserCourses, getCourses } from "@/lib/database";
+import { getAllUsersWithProfiles, getAllUserCourses, getCourses } from "@/lib/database";
 import { 
   Users, 
   Trash2, 
@@ -30,7 +30,7 @@ interface AddUserForm {
 
 export default function AsiakkaatPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [userCourses, setUserCourses] = useState<UserCourse[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);

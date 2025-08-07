@@ -60,7 +60,7 @@ export default function KirjauduPage() {
       );
       
       console.log("Odotetaan Supabase-vastausta...");
-      const { data: authData, error } = await Promise.race([authPromise, timeoutPromise]) as any;
+      const { data: authData, error } = await Promise.race([authPromise, timeoutPromise]) as { data: { user: { id: string; email?: string } }; error: { message: string; code?: string } | null };
 
       console.log("Supabase vastaus:", { authData, error });
 

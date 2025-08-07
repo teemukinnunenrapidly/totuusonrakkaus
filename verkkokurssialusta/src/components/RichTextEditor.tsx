@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -8,16 +8,16 @@ import YouTube from '@tiptap/extension-youtube';
 import { 
   Bold, 
   Italic, 
+  Heading1, 
+  Heading2, 
   List, 
   ListOrdered, 
   Quote, 
-  Heading1, 
-  Heading2, 
-  Link as LinkIcon,
-  Image as ImageIcon,
-  Youtube,
-  Undo,
-  Redo
+  Link as LinkIcon, 
+  Undo, 
+  Redo,
+  ImageIcon,
+  Youtube
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -28,7 +28,7 @@ interface RichTextEditorProps {
   disabled?: boolean;
 }
 
-const MenuBar = ({ editor }: { editor: any }) => {
+const MenuBar = ({ editor }: { editor: Editor | null }) => {
   if (!editor) {
     return null;
   }

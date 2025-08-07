@@ -9,19 +9,17 @@ import {
   Clock,
   Users,
   Calendar,
-  Play,
   Plus,
   Eye,
   EyeOff,
   Edit,
-  X,
   ExternalLink
 } from "lucide-react";
 import type { Course } from "@/types/database";
 
 export default function KaikkiKurssitPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);

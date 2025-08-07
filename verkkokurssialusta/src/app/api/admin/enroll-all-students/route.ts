@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Ilmoita kaikki oppilaat testikurssille
     const enrollments = [];
-    for (const user of users) {
+    for (const user of users.users) {
       // Tarkista että käyttäjä on student
       const { data: profile } = await supabase
         .from('user_profiles')

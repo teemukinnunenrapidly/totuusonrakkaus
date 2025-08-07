@@ -11,13 +11,13 @@ interface UserCourse {
   course_id: string;
   status: string;
   enrolled_at: string;
-  access_until?: string;
+  access_until?: string | null;
   course?: {
     id: string;
     title: string;
-    description: string;
-    price: number;
-    duration_hours: number;
+    description: string | null;
+    price: number | null;
+    duration_hours: number | null;
     is_active: boolean;
   };
 }

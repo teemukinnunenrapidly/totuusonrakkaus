@@ -10,9 +10,9 @@ import VimeoEmbed from "@/components/VimeoEmbed";
 interface Course {
   id: string;
   title: string;
-  description: string;
-  price: number;
-  duration_hours: number;
+  description: string | null;
+  price: number | null;
+  duration_hours: number | null;
   is_active: boolean;
 }
 
@@ -20,9 +20,9 @@ interface CourseSection {
   id: string;
   course_id: string;
   title: string;
-  content: string;
-  vimeo_url?: string;
-  downloadable_materials?: string[];
+  content: string | null;
+  vimeo_url?: string | null;
+  downloadable_materials?: string[] | null;
   order_index: number;
   created_at: string;
   updated_at: string;
@@ -209,7 +209,7 @@ export default function CoursePage() {
 
                 {/* Osion sisältö */}
                 <div className="prose max-w-none mb-8">
-                  <div dangerouslySetInnerHTML={{ __html: selectedSection.content }} />
+                  <div dangerouslySetInnerHTML={{ __html: selectedSection.content || '' }} />
                 </div>
 
                 {/* Ladattavat materiaalit */}

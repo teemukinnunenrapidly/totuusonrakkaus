@@ -8,7 +8,6 @@ import {
   BookOpen, 
   ArrowLeft,
   Save,
-  Eye,
   EyeOff
 } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +21,7 @@ interface CourseForm {
 
 export default function LisaaUusiPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
