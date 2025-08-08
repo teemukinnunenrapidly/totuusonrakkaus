@@ -79,7 +79,12 @@ export interface UserWithProfile {
   id: string;
   email: string;
   created_at: string;
+  user_metadata?: {
+    full_name?: string;
+    phone?: string;
+  };
   profile: UserProfile;
+  role?: 'admin' | 'student'; // Lisätty role-kenttä suoraan käyttäjälle
 }
 
 // Database helper types

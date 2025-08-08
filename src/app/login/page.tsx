@@ -4,15 +4,22 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { sanitizeEmail, validatePasswordStrength } from "@/lib/sanitization";
 
-// Zod schema validointiin
+// Parannettu Zod-skeema tietoturvaominaisuuksilla
 const loginSchema = z.object({
-  email: z.string().min(1, "Sähköposti on pakollinen").email("Syötä kelvollinen sähköpostiosoite"),
-  password: z.string().min(1, "Salasana on pakollinen"),
+  email: z
+    .string()
+    .min(1, "Sähköposti on pakollinen")
+    .email("Syötä kelvollinen sähköpostiosoite")
+    .max(255, "Sähköposti on liian pitkä")
+    .transform((val) => val.toLowerCase().trim()),
+  password: z
+    .string()
+    .min(1, "Salasana on pakollinen")
+    .max(128, "Salasana on liian pitkä")
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -47,11 +54,29 @@ export default function KirjauduPage() {
       console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
       console.log("Supabase Anon Key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "LÖYTYI" : "PUUTTUU");
       
+      // Input sanitization
+      const sanitizedEmail = sanitizeEmail(data.email);
+      if (!sanitizedEmail) {
+        setMessage({
+          type: "error",
+          text: "Virheellinen sähköpostiosoite",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Salasanan vahvuuden tarkistus (ei estä kirjautumista, mutta varoittaa)
+      const passwordValidation = validatePasswordStrength(data.password);
+      if (!passwordValidation.isValid) {
+        console.warn("Salasanan vahvuus:", passwordValidation.errors);
+        // Ei estetä kirjautumista, mutta voidaan näyttää varoitus
+      }
+      
       console.log("Yritetään kirjautua sisään...");
       
       // Supabase auth kutsu timeoutilla
       const authPromise = supabase.auth.signInWithPassword({
-        email: data.email,
+        email: sanitizedEmail,
         password: data.password,
       });
       
@@ -78,6 +103,8 @@ export default function KirjauduPage() {
           errorMessage = "Sähköpostiosoite ei ole vahvistettu. Tarkista sähköpostisi.";
         } else if (error.message.includes("Too many requests")) {
           errorMessage = "Liian monta kirjautumisyritystä. Odota hetki ja yritä uudelleen.";
+        } else if (error.message.includes("Login timeout")) {
+          errorMessage = "Kirjautuminen aikakatkaistiin. Tarkista internet-yhteys ja yritä uudelleen.";
         } else {
           errorMessage = `Kirjautumisvirhe: ${error.message}`;
         }
@@ -107,149 +134,174 @@ export default function KirjauduPage() {
       router.push("/my-courses");
       
     } catch (error) {
-      console.error("Kirjautumisessa tapahtui virhe:", error);
-      
-      // Exception handling
-      let errorMessage = "Kirjautumisessa tapahtui virhe. Yritä uudelleen.";
-      if (error instanceof Error) {
-        if (error.message.includes('timeout')) {
-          errorMessage = "Kirjautuminen kesti liian kauan. Tarkista internet-yhteys ja yritä uudelleen.";
-        } else {
-          errorMessage = `Virhe: ${error.message}`;
-        }
-      }
-      
+      console.error("Odottamaton virhe kirjautumisessa:", error);
       setMessage({
         type: "error",
-        text: errorMessage,
+        text: "Odottamaton virhe tapahtui. Yritä uudelleen.",
       });
       setIsLoading(false);
     }
   };
 
   return (
-    <div data-page="login" className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md mx-4">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Kirjaudu sisään
-            </h1>
-            <p className="text-gray-600">
-              Kirjaudu sisään jatkaaksesi oppimista
-            </p>
-          </div>
-
-
-
-          {/* Form - React Hook Form kytketty onSubmit-tapahtumaan */}
-          <form 
-            onSubmit={(e) => {
-              console.log("=== FORM SUBMIT TAPAHTUI ===");
-              handleSubmit(handleSubmitForm)(e);
-            }} 
-            className="space-y-6"
-          >
-            <div className="space-y-2">
-              <label 
-                htmlFor="email" 
-                className="block text-sm font-medium text-gray-700"
-              >
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Kirjaudu sisään
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Tai{" "}
+            <a
+              href="/register"
+              className="font-medium text-red-800 hover:text-red-700"
+            >
+              rekisteröidy tili
+            </a>
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit(handleSubmitForm)}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
                 Sähköposti
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  {...register("email")}
-                  id="email"
-                  type="email"
-                  placeholder="syota@sahkoposti.fi"
-                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                  aria-label="Sähköpostiosoite"
-                />
-              </div>
+              <input
+                {...register("email")}
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-red-500 focus:border-red-500 focus:z-10 sm:text-sm"
+                placeholder="Sähköposti"
+              />
               {errors.email && (
-                <p className="text-sm text-red-600 mt-1">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
-
-            <div className="space-y-2">
-              <label 
-                htmlFor="password" 
-                className="block text-sm font-medium text-gray-700"
-              >
+            <div className="relative">
+              <label htmlFor="password" className="sr-only">
                 Salasana
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  {...register("password")}
-                  id="password"
-                  type={isVisible ? "text" : "password"}
-                  placeholder="Syötä salasanasi"
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
-                  aria-label="Salasana"
-                />
-                <button
-                  type="button"
-                  onClick={handleToggleVisibility}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center focus:outline-none hover:bg-gray-100 rounded-r-lg transition-colors duration-200"
-                  aria-label={isVisible ? "Piilota salasana" : "Näytä salasana"}
-                >
-                  {isVisible ? (
-                    <EyeOff className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400" />
-                  )}
-                </button>
-              </div>
+              <input
+                {...register("password")}
+                id="password"
+                name="password"
+                type={isVisible ? "text" : "password"}
+                autoComplete="current-password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-red-500 focus:border-red-500 focus:z-10 sm:text-sm pr-10"
+                placeholder="Salasana"
+              />
+              <button
+                type="button"
+                onClick={handleToggleVisibility}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                {isVisible ? (
+                  <svg
+                    className="h-5 w-5 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="h-5 w-5 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                )}
+              </button>
               {errors.password && (
-                <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
               )}
             </div>
+          </div>
 
-            {/* Message - Error/Success viestit */}
-            {message && (
-              <div
-                className={`p-4 rounded-lg border transition-all duration-300 ${
-                  message.type === "success"
-                    ? "bg-green-50 text-green-800 border-green-200"
-                    : "bg-red-50 text-red-800 border-red-200"
+          {message && (
+            <div
+              className={`rounded-md p-4 ${
+                message.type === "error"
+                  ? "bg-red-50 border border-red-200"
+                  : "bg-green-50 border border-green-200"
+              }`}
+            >
+              <p
+                className={`text-sm ${
+                  message.type === "error" ? "text-red-800" : "text-green-800"
                 }`}
-                role="alert"
-                aria-live="polite"
               >
                 {message.text}
-              </div>
-            )}
+              </p>
+            </div>
+          )}
 
-            {/* Submit button */}
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <a
+                href="/forgot-password"
+                className="font-medium text-red-800 hover:text-red-700"
+              >
+                Unohditko salasanasi?
+              </a>
+            </div>
+          </div>
+
+          <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              aria-label="Kirjaudu sisään"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-800 hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              {isLoading ? (
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              ) : null}
               {isLoading ? "Kirjaudutaan..." : "Kirjaudu sisään"}
             </button>
-          </form>
-
-          {/* Links */}
-          <div className="mt-8 text-center">
-            <Link 
-              href="/reset-password" 
-              className="text-sm text-blue-600 hover:text-blue-700 underline transition-colors duration-200"
-              aria-label="Unohditko salasanasi? Siirry salasanan palautussivulle"
-            >
-              Unohditko salasanasi?
-            </Link>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

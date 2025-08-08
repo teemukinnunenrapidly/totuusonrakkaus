@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sanitizeEmail, validatePasswordStrength, sanitizeText } from '@/lib/sanitization';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,21 +9,59 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, role, courseAccess, accessUntil, userMetadata } = await request.json();
+    const body = await request.json();
+    
+    // Input validation ja sanitization
+    const { email, password, role, courseAccess, accessUntil, userMetadata } = body;
 
-    if (!email || !password) {
+    // Email validation
+    if (!email) {
       return NextResponse.json(
-        { error: 'Sähköposti ja salasana vaaditaan' },
+        { error: 'Sähköposti vaaditaan' },
         { status: 400 }
       );
     }
 
+    const sanitizedEmail = sanitizeEmail(email);
+    if (!sanitizedEmail) {
+      return NextResponse.json(
+        { error: 'Virheellinen sähköpostiosoite' },
+        { status: 400 }
+      );
+    }
+
+    // Password validation
+    if (!password) {
+      return NextResponse.json(
+        { error: 'Salasana vaaditaan' },
+        { status: 400 }
+      );
+    }
+
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.isValid) {
+      return NextResponse.json(
+        { 
+          error: 'Salasana ei täytä vahvuusvaatimuksia',
+          details: passwordValidation.errors
+        },
+        { status: 400 }
+      );
+    }
+
+    // Role validation
+    const validRoles = ['admin', 'student'];
+    const sanitizedRole = validRoles.includes(role) ? role : 'student';
+
+    // Sanitize user metadata
+    const sanitizedUserMetadata = userMetadata ? sanitizeText(JSON.stringify(userMetadata)) : {};
+
     // Luo käyttäjä Supabase Auth:ssa
     const { data: user, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password,
+      email: sanitizedEmail,
+      password: password,
       email_confirm: true, // Vahvista sähköposti automaattisesti
-      user_metadata: userMetadata || {}
+      user_metadata: sanitizedUserMetadata
     });
 
     if (createError) {
@@ -45,7 +84,7 @@ export async function POST(request: NextRequest) {
       .from('user_profiles')
       .insert({
         user_id: user.user.id,
-        role: role || 'student'
+        role: sanitizedRole
       });
 
     if (profileError) {
@@ -60,20 +99,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Jos kurssi on valittu, lisää käyttäjä kurssille
-    if (courseAccess) {
-      const { error: courseError } = await supabase
-        .from('user_courses')
-        .insert({
-          user_id: user.user.id,
-          course_id: courseAccess,
-          access_until: accessUntil || null,
-          status: 'active'
-        });
+    // Jos kurssipääsy on määritelty, lisää se
+    if (courseAccess && courseAccess.length > 0) {
+      const enrollments = courseAccess.map((courseId: string) => ({
+        user_id: user.user.id,
+        course_id: courseId,
+        enrolled_at: new Date().toISOString(),
+        access_until: accessUntil || null
+      }));
 
-      if (courseError) {
-        console.error('Error enrolling user in course:', courseError);
-        // Emme poista käyttäjää tässä tapauksessa, koska profiili on jo luotu
+      const { error: enrollmentError } = await supabase
+        .from('user_courses')
+        .insert(enrollments);
+
+      if (enrollmentError) {
+        console.error('Error creating course enrollments:', enrollmentError);
+        // Ei palauteta virhettä, koska käyttäjä on jo luotu
       }
     }
 
@@ -82,7 +123,9 @@ export async function POST(request: NextRequest) {
         message: 'Käyttäjä luotu onnistuneesti',
         user: {
           id: user.user.id,
-          email: user.user.email
+          email: user.user.email,
+          role: sanitizedRole,
+          created_at: user.user.created_at
         }
       },
       { status: 201 }

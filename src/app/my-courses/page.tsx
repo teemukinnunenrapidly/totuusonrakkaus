@@ -30,21 +30,33 @@ export default function MyCoursesPage() {
   useEffect(() => {
     const checkAuthAndLoadCourses = async () => {
       try {
+        console.log("=== MY-COURSES: Tarkistetaan sessio ===");
         const { data: { session } } = await supabase.auth.getSession();
         
+        console.log("My-courses session:", session);
+        console.log("Session exists:", !!session);
+        
         if (!session) {
+          console.log("❌ Ei sessiota my-courses sivulla, ohjataan login");
           window.location.href = '/login';
           return;
         }
 
+        console.log("✅ Sessio löytyi my-courses sivulla");
+        console.log("User ID:", session.user.id);
+        console.log("User email:", session.user.email);
+        
         setUserEmail(session.user.email || "");
         
         // Hae käyttäjän kurssit
+        console.log("Haetaan käyttäjän kurssit...");
         const courses = await getUserCourses(session.user.id);
+        console.log("Kurssit haettu:", courses);
         setUserCourses(courses);
       } catch (error) {
         console.error('Error loading courses:', error);
       } finally {
+        console.log("My-courses loading finished");
         setIsLoading(false);
       }
     };

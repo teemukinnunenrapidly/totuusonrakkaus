@@ -29,7 +29,7 @@ export default function VimeoEmbed({ vimeoUrl, title }: VimeoEmbedProps) {
 
   if (!videoId) {
     return (
-      <div className="bg-gray-100 rounded-lg p-8 text-center">
+              <div className="bg-gray-100 p-8 text-center">
         <div className="text-gray-500 mb-4">
           <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -49,7 +49,7 @@ export default function VimeoEmbed({ vimeoUrl, title }: VimeoEmbedProps) {
       <div className="relative w-full" style={{ paddingBottom: '56.25%' }}> {/* 16:9 aspect ratio */}
         <iframe
           src={`https://player.vimeo.com/video/${videoId}?h=hash&dnt=1&title=0&byline=0&portrait=0&controls=1&pip=0&dnt=1&transparent=0&logo=0&badge=0&color=00adef&muted=0&autopause=0&autoplay=0&loop=0&background=0&quality=auto&playsinline=0&fullscreen=1&volume=1`}
-          className="absolute top-0 left-0 w-full h-full rounded-lg"
+          className="absolute top-0 left-0 w-full h-full"
           frameBorder="0"
           allow="autoplay; fullscreen; picture-in-picture"
           allowFullScreen

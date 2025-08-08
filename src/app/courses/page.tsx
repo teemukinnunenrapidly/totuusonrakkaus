@@ -13,7 +13,8 @@ import {
   Eye,
   EyeOff,
   Edit,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from "lucide-react";
 import type { Course } from "@/types/database";
 
@@ -24,6 +25,9 @@ export default function KaikkiKurssitPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishingCourseId, setPublishingCourseId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [deletingCourseTitle, setDeletingCourseTitle] = useState<string>('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -126,8 +130,52 @@ export default function KaikkiKurssitPage() {
   };
 
   const handlePreviewCourse = (courseId: string) => {
-    // Avaa kurssi uudessa välilehdessä
-    window.open(`/course/${courseId}`, '_blank');
+    // Avaa kurssi samassa välilehdessä
+    router.push(`/course/${courseId}`);
+  };
+
+  const handleDeleteCourse = (courseId: string, courseTitle: string) => {
+    setDeletingCourseId(courseId);
+    setDeletingCourseTitle(courseTitle);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCourse = async () => {
+    if (!deletingCourseId) return;
+
+    try {
+      const response = await fetch('/api/admin/delete-course', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ courseId: deletingCourseId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setShowSuccess(true);
+        setShowDeleteModal(false);
+        setDeletingCourseId(null);
+        setDeletingCourseTitle('');
+        
+        // Päivitä kurssit lista
+        await loadCourses();
+        
+        // Piilota success viesti 3 sekunnin jälkeen
+        setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        setErrorMessage(data.error || 'Virhe kurssin poistossa');
+        setShowError(true);
+        setTimeout(() => setShowError(false), 5000);
+      }
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      setErrorMessage('Virhe kurssin poistossa');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -235,7 +283,7 @@ export default function KaikkiKurssitPage() {
                   </div>
                 </div>
 
-                {/* Toiminnot - 3 painiketta */}
+                {/* Toiminnot - 4 painiketta */}
                 <div className="flex gap-2">
                   <button 
                     onClick={() => handlePreviewCourse(course.id)}
@@ -262,6 +310,14 @@ export default function KaikkiKurssitPage() {
                       Julkaise
                     </button>
                   )}
+                  
+                  <button 
+                    onClick={() => handleDeleteCourse(course.id, course.title)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 text-sm"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Poista
+                  </button>
                 </div>
               </div>
             </div>
@@ -314,13 +370,56 @@ export default function KaikkiKurssitPage() {
           </div>
         )}
 
+        {/* Poisto-vahvistus modaali */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <Trash2 className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Poista kurssi</h3>
+                    <p className="text-sm text-gray-600">
+                      Haluatko varmasti poistaa kurssin <strong>&quot;{deletingCourseTitle}&quot;</strong>?
+                    </p>
+                    <p className="text-xs text-red-600 mt-2">
+                      ⚠️ Tämä toiminto poistaa kurssin pysyvästi ja sitä ei voi perua.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeletingCourseId(null);
+                      setDeletingCourseTitle('');
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Peruuta
+                  </button>
+                  <button
+                    onClick={confirmDeleteCourse}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
+                  >
+                    Poista kurssi
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Success notifikaatio */}
         {showSuccess && (
           <div className="fixed top-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 shadow-lg z-50">
             <div className="flex items-center">
-              <Eye className="h-5 w-5 text-green-600 mr-2" />
+              <Trash2 className="h-5 w-5 text-green-600 mr-2" />
               <span className="text-green-800 font-medium">
-                Kurssi julkaistu onnistuneesti!
+                Kurssi poistettu onnistuneesti!
               </span>
             </div>
           </div>
