@@ -284,10 +284,11 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("=== WOOCOMMERCE WEBHOOK COMPLETED SUCCESSFULLY ===");
-    return NextResponse.json({ 
-      message: "Order processed successfully",
+        return NextResponse.json({ 
+      success: true,
+      message: "Order processed successfully", 
       order_id: order.id 
-    });
+    }, { status: 200 });
 
   } catch (error) {
     console.error("=== WOOCOMMERCE WEBHOOK ERROR ===");
