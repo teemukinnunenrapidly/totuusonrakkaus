@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { sanitizeText, validateInputLength, validateUUID } from '@/lib/sanitization';
 
 // Create a client that can access user sessions
-const createServerClient = (request: NextRequest) => {
+const createServerClient = async (request: NextRequest) => {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,7 +31,7 @@ const createServerClient = (request: NextRequest) => {
     
     // Try to get user from token directly
     try {
-      const { data: { user }, error } = supabase.auth.getUser(token);
+      const { data: { user }, error } = await supabase.auth.getUser(token);
       if (user && !error) {
         console.log("User found from token:", user.email);
         return supabase;
@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
 // PUT - Päivitä kommentti
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createServerClient(request);
+    const supabase = await createServerClient(request);
     const { data: { session } } = await supabase.auth.getSession();
     const body = await request.json();
     
@@ -345,8 +345,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Tarkista käyttäjän admin-status
-    let isAdmin = false;
+    // Tarkista käyttäjän admin-status (tällä hetkellä ei käytetä)
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -354,10 +353,9 @@ export async function PUT(request: NextRequest) {
         .eq('user_id', session.user.id)
         .single();
       
-      isAdmin = profile?.role === 'admin';
+      // isAdmin = profile?.role === 'admin'; // Not used currently
     } catch (error) {
       console.error('Error checking admin status:', error);
-      isAdmin = false;
     }
 
     // Create admin client for database operations
@@ -425,7 +423,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - Poista kommentti
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = createServerClient(request);
+    const supabase = await createServerClient(request);
     const { data: { session } } = await supabase.auth.getSession();
     const { searchParams } = new URL(request.url);
     const commentId = searchParams.get("commentId");
@@ -446,8 +444,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Tarkista käyttäjän admin-status
-    let isAdmin = false;
+    // Tarkista käyttäjän admin-status (tällä hetkellä ei käytetä)
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -455,10 +452,9 @@ export async function DELETE(request: NextRequest) {
         .eq('user_id', session.user.id)
         .single();
       
-      isAdmin = profile?.role === 'admin';
+      // isAdmin = profile?.role === 'admin'; // Not used currently
     } catch (error) {
       console.error('Error checking admin status:', error);
-      isAdmin = false;
     }
 
     // Create admin client for database operations
