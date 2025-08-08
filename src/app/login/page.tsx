@@ -74,11 +74,53 @@ export default function KirjauduPage() {
       
       console.log("Yritetään kirjautua sisään...");
       
-      // Supabase auth kutsu ilman timeoutia
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: sanitizedEmail,
-        password: data.password,
-      });
+      // Retry-logiikka Supabase auth kutsuun
+      let authData;
+      let error;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          console.log(`Kirjautumisyritys ${retryCount + 1}/${maxRetries + 1}...`);
+          
+          const startTime = Date.now();
+          const result = await supabase.auth.signInWithPassword({
+            email: sanitizedEmail,
+            password: data.password,
+          });
+          const endTime = Date.now();
+          
+          console.log(`Kirjautumisyritys kesti ${endTime - startTime}ms`);
+          
+          authData = result.data;
+          error = result.error;
+          
+          if (!error) {
+            console.log("Kirjautuminen onnistui!");
+            break;
+          }
+          
+          // Jos virhe ei ole timeout, ei retrytä
+          if (!error.message.includes("timeout") && !error.message.includes("network")) {
+            console.log("Virhe ei ole timeout, ei retrytä");
+            break;
+          }
+          
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            console.log(`Odota 2 sekuntia ennen retryä ${retryCount}...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+        } catch (retryError) {
+          console.error(`Retry ${retryCount + 1} epäonnistui:`, retryError);
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
 
       console.log("Supabase vastaus:", { authData, error });
 
@@ -96,8 +138,8 @@ export default function KirjauduPage() {
           errorMessage = "Sähköpostiosoite ei ole vahvistettu. Tarkista sähköpostisi.";
         } else if (error.message.includes("Too many requests")) {
           errorMessage = "Liian monta kirjautumisyritystä. Odota hetki ja yritä uudelleen.";
-        } else if (error.message.includes("timeout")) {
-          errorMessage = "Kirjautuminen kesti liian kauan. Tarkista internet-yhteys ja yritä uudelleen.";
+        } else if (error.message.includes("timeout") || error.message.includes("network")) {
+          errorMessage = "Yhteysongelma. Tarkista internet-yhteys ja yritä uudelleen.";
         } else {
           errorMessage = `Kirjautumisvirhe: ${error.message}`;
         }
