@@ -1,12 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { resend } from "@/lib/resend";
+import crypto from "crypto";
 
 // Create service role client for webhook operations
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// WooCommerce webhook secret - should match the secret in WooCommerce settings
+const WOOCOMMERCE_WEBHOOK_SECRET = process.env.WOOCOMMERCE_WEBHOOK_SECRET || 'sQG?)AJF8CpK9W*33]DK$];%rTnkKz^b7glojt3$eu]OeYOX';
+
+function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(payload, 'utf8')
+      .digest('base64');
+    
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+  } catch (error) {
+    console.error("Error verifying webhook signature:", error);
+    return false;
+  }
+}
 
 interface WooCommerceOrder {
   id: number;
@@ -39,11 +60,28 @@ export async function POST(request: NextRequest) {
     console.log("- NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "SET" : "NOT SET");
     console.log("- SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "SET" : "NOT SET");
     console.log("- RESEND_API_KEY:", process.env.RESEND_API_KEY ? "SET" : "NOT SET");
+    console.log("- WOOCOMMERCE_WEBHOOK_SECRET:", WOOCOMMERCE_WEBHOOK_SECRET ? "SET" : "NOT SET");
     
     console.log("WooCommerce webhook received");
     
-    const body = await request.json();
+    // Get the raw body for signature verification
+    const rawBody = await request.text();
+    const body = JSON.parse(rawBody);
     const order: WooCommerceOrder = body;
+
+    // Verify webhook signature
+    const signature = request.headers.get('x-wc-webhook-signature');
+    if (signature) {
+      console.log("Webhook signature found, verifying...");
+      const isValid = verifyWebhookSignature(rawBody, signature, WOOCOMMERCE_WEBHOOK_SECRET);
+      if (!isValid) {
+        console.error("Invalid webhook signature");
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
+      console.log("Webhook signature verified successfully");
+    } else {
+      console.log("No webhook signature found, skipping verification");
+    }
 
     console.log(`Order data:`, {
       id: order.id,
