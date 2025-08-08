@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { resend } from "@/lib/resend";
+
+// Create service role client for webhook operations
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface WooCommerceOrder {
   id: number;
@@ -28,11 +34,21 @@ interface WooCommerceOrder {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("WooCommerce webhook received");
+    
     const body = await request.json();
     const order: WooCommerceOrder = body;
 
+    console.log(`Order data:`, {
+      id: order.id,
+      status: order.status,
+      customer_email: order.billing.email,
+      total: order.total
+    });
+
     // Only process completed orders
     if (order.status !== 'completed') {
+      console.log(`Order ${order.id} not completed (status: ${order.status}), skipping`);
       return NextResponse.json({ message: "Order not completed, skipping" });
     }
 
@@ -70,8 +86,13 @@ export async function POST(request: NextRequest) {
 
     if (orderError) {
       console.error("Error inserting order:", orderError);
-      return NextResponse.json({ error: "Failed to process order" }, { status: 500 });
+      return NextResponse.json({ 
+        error: "Failed to process order", 
+        details: orderError.message 
+      }, { status: 500 });
     }
+
+    console.log(`Order ${order.id} inserted successfully`);
 
     // Process each line item
     for (const item of order.line_items) {
