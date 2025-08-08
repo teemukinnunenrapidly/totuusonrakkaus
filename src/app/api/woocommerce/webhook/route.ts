@@ -74,7 +74,7 @@ async function sendPasswordEmail(email: string, firstName: string, password: str
                         display: inline-block; 
                         font-weight: bold;
                         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-                Kirjaudu sisään
+                Aseta salasana
               </a>
             </div>
             
@@ -490,14 +490,14 @@ async function sendWelcomeEmail(email: string, firstName: string, courseName: st
                         display: inline-block; 
                         font-weight: bold;
                         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-                Kirjaudu sisään
+                Aseta salasana
               </a>
             </div>
             
             <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
               <h4 style="color: #856404; margin: 0 0 10px 0;">📚 Kurssin aloittaminen:</h4>
               <ul style="color: #856404; margin: 0; padding-left: 20px;">
-                <li>Kirjaudu sisään yllä olevalla painikkeella</li>
+                <li>Aseta salasana yllä olevalla painikkeella</li>
                 <li>Mene "Omat kurssit" -osioon</li>
                 <li>Aloita kurssin katselu</li>
                 <li>Voit pysäyttää ja jatkaa missä tahansa</li>
