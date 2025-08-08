@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     
     const result = await resend.emails.send({
       from: 'onboarding@resend.dev',
-      to: 'teme.kinnunen@gmail.com',
+      to: 'teemu.kinnunen@rapidly.fi',
       subject: 'Test Email - Totuusonrakkaus',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
