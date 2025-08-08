@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { 
   initializeSessionStorage, 
   getSessionStatus, 
@@ -24,10 +23,8 @@ interface AddUserForm {
 
 export default function AsiakkaatPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [userCourses, setUserCourses] = useState<UserCourse[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,16 +71,13 @@ export default function AsiakkaatPage() {
         }
         
         // Check admin status
-        const isAdminUser = await checkAdminStatus(sessionStatus.user.id);
+        const isAdminUser = await checkAdminStatus(sessionStatus.user?.id as string);
         
         if (!isAdminUser) {
           console.log('User is not admin');
           router.push('/my-courses');
           return;
         }
-
-        setUser(sessionStatus.user);
-        setIsAdmin(true);
         
         // Load data
         await loadData();
@@ -249,10 +243,6 @@ export default function AsiakkaatPage() {
   const getCourseTitle = (courseId: string) => {
     const course = courses.find(c => c.id === courseId);
     return course?.title || 'Tuntematon kurssi';
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fi-FI');
   };
 
   const formatDateTime = (dateString: string) => {

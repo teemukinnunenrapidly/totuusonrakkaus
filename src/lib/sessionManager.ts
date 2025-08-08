@@ -15,7 +15,7 @@ export interface SessionStatus {
   isAuthenticated: boolean;
   isExpired: boolean;
   needsRefresh: boolean;
-  user: any | null;
+  user: Record<string, unknown> | null;
   error?: string;
 }
 
@@ -33,7 +33,7 @@ export const initializeSessionStorage = async (): Promise<void> => {
     }
     
     if (session) {
-      setSessionStorage(session);
+      setSessionStorage(session as unknown as Record<string, unknown>);
     } else {
       clearSessionStorage();
     }
@@ -46,7 +46,7 @@ export const initializeSessionStorage = async (): Promise<void> => {
 /**
  * Set session storage with session data
  */
-export const setSessionStorage = (session: any): void => {
+export const setSessionStorage = (session: Record<string, unknown>): void => {
   try {
     sessionStorage.setItem(SESSION_STORAGE_KEY, 'active');
     sessionStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
@@ -140,18 +140,18 @@ export const getSessionStatus = async (): Promise<SessionStatus> => {
     }
     
     // Check if session is expired
-    const isExpired = session.expires_at && new Date(session.expires_at * 1000) < new Date();
+    const isExpired = !!(session.expires_at && new Date(session.expires_at * 1000) < new Date());
     
     // Update session storage if session is valid
     if (!isExpired) {
-      setSessionStorage(session);
+      setSessionStorage(session as unknown as Record<string, unknown>);
     }
     
     return {
       isAuthenticated: true,
       isExpired: isExpired,
       needsRefresh: isExpired,
-      user: session.user,
+      user: session.user as unknown as Record<string, unknown>,
       error: isExpired ? 'Session expired' : undefined
     };
   } catch (error) {
@@ -191,13 +191,13 @@ export const refreshSessionIfNeeded = async (): Promise<SessionStatus> => {
       }
       
       // Update session storage with refreshed session
-      setSessionStorage(refreshData.session);
+      setSessionStorage(refreshData.session as unknown as Record<string, unknown>);
       
       return {
         isAuthenticated: true,
         isExpired: false,
         needsRefresh: false,
-        user: refreshData.session.user
+        user: refreshData.session.user as unknown as Record<string, unknown>
       };
     } catch (error) {
       console.error('Error refreshing session:', error);
@@ -241,7 +241,7 @@ export const checkAdminStatus = async (userId: string): Promise<boolean> => {
 /**
  * Setup auth state change listener
  */
-export const setupAuthStateListener = (onAuthChange?: (session: any) => void) => {
+export const setupAuthStateListener = (onAuthChange?: (session: Record<string, unknown> | null) => void) => {
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth state changed:', event, session?.user?.email);
     
@@ -250,8 +250,8 @@ export const setupAuthStateListener = (onAuthChange?: (session: any) => void) =>
       if (onAuthChange) onAuthChange(null);
     } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
       if (session) {
-        setSessionStorage(session);
-        if (onAuthChange) onAuthChange(session);
+        setSessionStorage(session as unknown as Record<string, unknown>);
+        if (onAuthChange) onAuthChange(session as unknown as Record<string, unknown>);
       }
     }
   });

@@ -18,9 +18,11 @@ const allowedOrigins = [
 // Input validation regex patterns
 const VALID_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const clientIP = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+  const clientIP = request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown';
 
   // 1. Request validation
   const requestValidation = validateRequest(request);
@@ -53,25 +55,26 @@ export function middleware(request: NextRequest) {
   const rateLimitResult = checkRateLimit(rateLimitKey, maxRequests);
   
   if (!rateLimitResult.allowed) {
+    const retryAfter = rateLimitResult.retryAfter || 60; // Default 60 seconds
     logSecurityEvent('rate_limit_exceeded', {
       pathname,
       clientIP,
-      retryAfter: rateLimitResult.retryAfter
+      retryAfter
     }, 'medium');
     
     return new NextResponse(
       JSON.stringify({ 
         error: 'Liian monta pyyntöä. Yritä uudelleen myöhemmin.',
-        retryAfter: rateLimitResult.retryAfter
+        retryAfter
       }),
       { 
         status: 429,
         headers: {
           'Content-Type': 'application/json',
-          'Retry-After': rateLimitResult.retryAfter.toString(),
+          'Retry-After': retryAfter.toString(),
           'X-RateLimit-Limit': maxRequests.toString(),
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': new Date(Date.now() + rateLimitResult.retryAfter * 1000).toISOString()
+          'X-RateLimit-Reset': new Date(Date.now() + retryAfter * 1000).toISOString()
         }
       }
     );

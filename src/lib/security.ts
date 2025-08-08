@@ -1,246 +1,233 @@
 /**
- * General security utilities
+ * Security utilities and configuration
  */
 
 import { NextRequest } from 'next/server';
 
-// Security constants
+// Security configuration
 export const SECURITY_CONFIG = {
-  // Rate limiting
-  RATE_LIMIT_WINDOW: 60 * 1000, // 1 minute
-  RATE_LIMIT_MAX_REQUESTS: 100,
-  RATE_LIMIT_MAX_AUTH_REQUESTS: 20,
-  
-  // Input validation
-  MAX_EMAIL_LENGTH: 255,
-  MAX_PASSWORD_LENGTH: 128,
-  MAX_CONTENT_LENGTH: 10000,
-  MAX_TITLE_LENGTH: 200,
-  
-  // Session security
+  RATE_LIMIT_MAX_REQUESTS: 100, // Max requests per window
+  RATE_LIMIT_MAX_AUTH_REQUESTS: 10, // Stricter limit for auth endpoints
+  RATE_LIMIT_WINDOW_MS: 60 * 1000, // 1 minute window
   SESSION_TIMEOUT: 24 * 60 * 60 * 1000, // 24 hours
-  REFRESH_TOKEN_TIMEOUT: 30 * 24 * 60 * 60 * 1000, // 30 days
-  
-  // Allowed domains for external resources
-  ALLOWED_DOMAINS: [
-    'vimeo.com',
-    'player.vimeo.com',
-    'youtube.com',
-    'youtu.be',
-    'supabase.co',
-    'totuusonrakkaus.fi',
-    'fonts.googleapis.com',
-    'fonts.gstatic.com'
-  ]
+  MAX_REQUEST_SIZE: 10 * 1024 * 1024, // 10MB
+  ALLOWED_FILE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
+  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
 };
 
-// Security headers configuration
+// In-memory rate limit store (in production, use Redis)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+/**
+ * Get security headers for responses
+ */
 export const getSecurityHeaders = () => ({
   'X-Frame-Options': 'DENY',
   'X-Content-Type-Options': 'nosniff',
   'X-XSS-Protection': '1; mode=block',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload'
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
 });
 
-// Content Security Policy
+/**
+ * Get Content Security Policy
+ */
 export const getCSPPolicy = () => {
-  const allowedDomains = SECURITY_CONFIG.ALLOWED_DOMAINS.join(' ');
-  
-  return [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https:",
-    "connect-src 'self' https://*.supabase.co https://*.vimeo.com",
-    "frame-src 'self' https://player.vimeo.com",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'"
-  ].join('; ');
+  return "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://*.vimeo.com; frame-src 'self' https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self';";
 };
 
-// Request validation
+/**
+ * Validate incoming request
+ */
 export const validateRequest = (request: NextRequest) => {
   const errors: string[] = [];
-  
-  // Check for suspicious patterns in URL
-  const url = request.nextUrl.toString();
+  const clientIP = request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown';
+  const userAgent = request.headers.get('user-agent') || '';
+
+  // Check for suspicious patterns
   const suspiciousPatterns = [
     /\.\.\//, // Directory traversal
-    /<script/i, // XSS
-    /javascript:/i, // XSS
-    /on\w+\s*=/i, // XSS event handlers
+    /<script/i, // Script injection
+    /javascript:/i, // JavaScript protocol
+    /on\w+\s*=/i, // Event handlers
     /union\s+select/i, // SQL injection
     /drop\s+table/i, // SQL injection
     /exec\s*\(/i, // Command injection
   ];
-  
-  const containsAttackPattern = suspiciousPatterns.some(pattern => pattern.test(url));
-  if (containsAttackPattern) {
-    errors.push('Pyyntö sisältää epäilyttäviä merkkejä');
-  }
-  
-  // Check User-Agent
-  const userAgent = request.headers.get('user-agent') || '';
-  const suspiciousUserAgents = [
-    /bot/i, /crawler/i, /spider/i, /scraper/i,
-    /curl/i, /wget/i, /python/i, /java/i, /perl/i, /ruby/i
-  ];
-  
-  const isSuspiciousUserAgent = suspiciousUserAgents.some(pattern => 
-    pattern.test(userAgent) && 
-    !userAgent.includes('Mozilla') && 
-    !userAgent.includes('Chrome') && 
-    !userAgent.includes('Safari')
+
+  const url = request.url;
+  const hasSuspiciousPattern = suspiciousPatterns.some(pattern => 
+    pattern.test(url) || pattern.test(userAgent)
   );
-  
-  if (isSuspiciousUserAgent) {
-    errors.push('Epäilyttävä User-Agent');
+
+  if (hasSuspiciousPattern) {
+    errors.push('Suspicious request pattern detected');
   }
-  
+
+  // Check request size
+  const contentLength = request.headers.get('content-length');
+  if (contentLength && parseInt(contentLength) > SECURITY_CONFIG.MAX_REQUEST_SIZE) {
+    errors.push('Request too large');
+  }
+
+  // Check for suspicious User-Agent
+  const suspiciousUserAgents = [
+    /bot/i,
+    /crawler/i,
+    /spider/i,
+    /scraper/i,
+    /curl/i,
+    /wget/i,
+  ];
+
+  const hasSuspiciousUserAgent = suspiciousUserAgents.some(pattern => 
+    pattern.test(userAgent)
+  );
+
+  if (hasSuspiciousUserAgent && !userAgent.includes('Mozilla')) {
+    errors.push('Suspicious User-Agent');
+  }
+
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
+    clientIP,
+    userAgent
   };
 };
 
-// Rate limiting store (in-memory, use Redis in production)
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-
+/**
+ * Check rate limit for a given identifier
+ */
 export const checkRateLimit = (
   identifier: string, 
   maxRequests: number, 
-  windowMs: number = SECURITY_CONFIG.RATE_LIMIT_WINDOW
+  windowMs: number = SECURITY_CONFIG.RATE_LIMIT_WINDOW_MS
 ) => {
   const now = Date.now();
-  const userData = rateLimitStore.get(identifier);
+  const key = `${identifier}:${Math.floor(now / windowMs)}`;
   
-  if (userData && now < userData.resetTime) {
-    if (userData.count >= maxRequests) {
-      return {
-        allowed: false,
-        retryAfter: Math.ceil((userData.resetTime - now) / 1000),
-        remaining: 0
-      };
-    }
-    userData.count++;
-    return {
-      allowed: true,
-      retryAfter: 0,
-      remaining: maxRequests - userData.count
-    };
-  } else {
-    rateLimitStore.set(identifier, {
+  const current = rateLimitStore.get(key);
+  
+  if (!current || now > current.resetTime) {
+    rateLimitStore.set(key, {
       count: 1,
       resetTime: now + windowMs
     });
-    return {
-      allowed: true,
-      retryAfter: 0,
-      remaining: maxRequests - 1
+    return { allowed: true, remaining: maxRequests - 1 };
+  }
+  
+  if (current.count >= maxRequests) {
+    return { 
+      allowed: false, 
+      retryAfter: Math.ceil((current.resetTime - now) / 1000)
     };
   }
+  
+  current.count++;
+  return { 
+    allowed: true, 
+    remaining: maxRequests - current.count 
+  };
 };
 
-// Clean up old rate limit entries
+/**
+ * Clean up old rate limit entries
+ */
 export const cleanupRateLimitStore = () => {
   const now = Date.now();
+  const windowMs = SECURITY_CONFIG.RATE_LIMIT_WINDOW_MS;
+  
   for (const [key, value] of rateLimitStore.entries()) {
-    if (now > value.resetTime) {
+    if (now > value.resetTime + windowMs) {
       rateLimitStore.delete(key);
     }
   }
 };
 
-// Run cleanup every 5 minutes
-setInterval(cleanupRateLimitStore, 5 * 60 * 1000);
-
-// Admin authentication check
+/**
+ * Check if user is admin
+ */
 export const checkAdminAuth = async (request: NextRequest) => {
-  const authHeader = request.headers.get('authorization');
-  const apiKey = request.headers.get('x-api-key');
-  
-  // Check for service role key in headers (for server-to-server calls)
-  if (apiKey === process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { isAdmin: true, userId: null };
-  }
-  
-  // Check for Bearer token
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  try {
+    // Get authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return { isAdmin: false, error: 'No authorization header' };
+    }
+
     const token = authHeader.substring(7);
-    // Here you would validate the JWT token
-    // For now, we'll assume it's valid if present
-    return { isAdmin: true, userId: 'token-user' };
+    
+    // In a real implementation, you would verify the JWT token here
+    // For now, we'll use a simple check against environment variable
+    const adminToken = process.env.ADMIN_SECRET_TOKEN;
+    
+    if (!adminToken || token !== adminToken) {
+      return { isAdmin: false, error: 'Invalid admin token' };
+    }
+    
+    return { isAdmin: true };
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return { isAdmin: false, error: 'Admin auth failed' };
   }
-  
-  return { isAdmin: false, userId: null };
 };
 
-// Log security events
+/**
+ * Log security events
+ */
 export const logSecurityEvent = (
   event: string, 
-  details: Record<string, any>, 
+  details: Record<string, unknown>, 
   severity: 'low' | 'medium' | 'high' = 'low'
 ) => {
+  const timestamp = new Date().toISOString();
   const logEntry = {
-    timestamp: new Date().toISOString(),
+    timestamp,
     event,
-    details,
     severity,
-    userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
-    ip: 'client-ip' // Would be extracted from request in real implementation
+    details,
+    environment: process.env.NODE_ENV || 'development'
   };
   
-  console.log(`[SECURITY ${severity.toUpperCase()}]`, logEntry);
+  console.log(`[SECURITY] ${severity.toUpperCase()}: ${event}`, logEntry);
   
-  // In production, send to security monitoring service
-  if (severity === 'high') {
-    // Send to security monitoring
-    console.error('HIGH SECURITY EVENT:', logEntry);
-  }
+  // In production, you would send this to a logging service
+  // like CloudWatch, Loggly, or similar
 };
 
-// Validate file upload
+/**
+ * Validate file upload
+ */
 export const validateFileUpload = (file: File) => {
   const errors: string[] = [];
   
-  // Check file size (max 10MB)
-  const maxSize = 10 * 1024 * 1024;
-  if (file.size > maxSize) {
-    errors.push('Tiedosto on liian suuri (max 10MB)');
+  // Check file size
+  if (file.size > SECURITY_CONFIG.MAX_FILE_SIZE) {
+    errors.push(`File too large. Maximum size is ${SECURITY_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`);
   }
   
   // Check file type
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf',
-    'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ];
-  
-  if (!allowedTypes.includes(file.type)) {
-    errors.push('Tiedostotyyppi ei ole sallittu');
+  if (!SECURITY_CONFIG.ALLOWED_FILE_TYPES.includes(file.type)) {
+    errors.push(`File type not allowed. Allowed types: ${SECURITY_CONFIG.ALLOWED_FILE_TYPES.join(', ')}`);
   }
   
   // Check filename for suspicious patterns
   const suspiciousPatterns = [
     /\.\.\//, // Directory traversal
-    /<script/i, // XSS
-    /javascript:/i, // XSS
-    /\.exe$/i, // Executable
-    /\.bat$/i, // Batch file
-    /\.sh$/i, // Shell script
+    /<script/i, // Script injection
+    /\.(exe|bat|cmd|com|pif|scr|vbs|js)$/i, // Executable files
   ];
   
-  if (suspiciousPatterns.some(pattern => pattern.test(file.name))) {
-    errors.push('Tiedostonimi sisältää epäilyttäviä merkkejä');
+  const hasSuspiciousPattern = suspiciousPatterns.some(pattern => 
+    pattern.test(file.name)
+  );
+  
+  if (hasSuspiciousPattern) {
+    errors.push('Suspicious filename detected');
   }
   
   return {
@@ -249,28 +236,35 @@ export const validateFileUpload = (file: File) => {
   };
 };
 
-// Generate secure random string
+/**
+ * Generate secure random token
+ */
 export const generateSecureToken = (length: number = 32) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
   
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(array[i] % chars.length);
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   
   return result;
 };
 
-// Hash sensitive data for logging (not for storage)
+/**
+ * Hash sensitive data (simple implementation)
+ */
 export const hashSensitiveData = (data: string) => {
-  // Simple hash for logging purposes
   let hash = 0;
+  
+  if (data.length === 0) {
+    return hash.toString(16);
+  }
+  
   for (let i = 0; i < data.length; i++) {
     const char = data.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash; // Convert to 32-bit integer
   }
+  
   return hash.toString(16);
 };
