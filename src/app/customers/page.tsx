@@ -128,6 +128,10 @@ export default function AsiakkaatPage() {
         getCourses()
       ]);
       
+      console.log('Users data:', usersData);
+      console.log('User courses data:', coursesData);
+      console.log('Available courses:', availableCourses);
+      
       setUsers(usersData);
       setUserCourses(coursesData);
       setCourses(availableCourses);
@@ -407,11 +411,11 @@ export default function AsiakkaatPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        userWithProfile.role === 'admin' 
+                        userWithProfile.profile?.role === 'admin' 
                           ? 'bg-red-100 text-red-800' 
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {userWithProfile.role === 'admin' ? 'Ylläpitäjä' : 'Oppilas'}
+                        {userWithProfile.profile?.role === 'admin' ? 'Ylläpitäjä' : 'Oppilas'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

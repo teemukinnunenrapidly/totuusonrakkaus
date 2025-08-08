@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@heroui/react";
 import { Avatar } from "@heroui/react";
+import { supabase } from "@/lib/supabase";
 import { 
   MessageCircle,
   Send,
@@ -77,7 +78,9 @@ export default function CommentSection({ courseId, sectionId }: CommentSectionPr
   const loadComments = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/comments?courseId=${courseId}&sectionId=${sectionId || ""}`);
+      const response = await fetch(`/api/comments?courseId=${courseId}&sectionId=${sectionId || ""}`, {
+        credentials: 'include'
+      });
       
       if (response.ok) {
         const data = await response.json();
@@ -178,9 +181,16 @@ export default function CommentSection({ courseId, sectionId }: CommentSectionPr
 
     try {
       setIsLoading(true);
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const response = await fetch("/api/comments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token || ''}`
+        },
+        credentials: 'include',
         body: JSON.stringify({
           content: newComment,
           courseId,
@@ -214,6 +224,7 @@ export default function CommentSection({ courseId, sectionId }: CommentSectionPr
       const response = await fetch(`/api/comments/${commentId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           content: editContent
         })
@@ -244,7 +255,8 @@ export default function CommentSection({ courseId, sectionId }: CommentSectionPr
     try {
       setIsLoading(true);
       const response = await fetch(`/api/comments/${commentId}`, {
-        method: "DELETE"
+        method: "DELETE",
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -268,7 +280,8 @@ export default function CommentSection({ courseId, sectionId }: CommentSectionPr
     try {
       setIsLoading(true);
       const response = await fetch(`/api/comments/${replyId}`, {
-        method: "DELETE"
+        method: "DELETE",
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -308,6 +321,7 @@ export default function CommentSection({ courseId, sectionId }: CommentSectionPr
       const response = await fetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           content: replyContent,
           courseId,

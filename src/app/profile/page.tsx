@@ -9,6 +9,7 @@ interface UserProfile {
   id: string;
   user_id: string;
   role: 'admin' | 'student';
+  display_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +18,9 @@ export default function ProfilePage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [displayName, setDisplayName] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -33,6 +37,7 @@ export default function ProfilePage() {
         // Hae käyttäjäprofiili
         const userProfile = await getUserProfile(session.user.id);
         setProfile(userProfile);
+        setDisplayName(userProfile?.display_name || "");
 
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -43,6 +48,31 @@ export default function ProfilePage() {
 
     loadProfile();
   }, []);
+
+  const handleSaveDisplayName = async () => {
+    if (!user || !profile) return;
+    
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ display_name: displayName })
+        .eq('user_id', user.id);
+      
+      if (error) {
+        console.error('Error updating display name:', error);
+        alert('Virhe nimen tallentamisessa');
+      } else {
+        setProfile(prev => prev ? { ...prev, display_name: displayName } : null);
+        setIsEditing(false);
+      }
+    } catch (error) {
+      console.error('Error updating display name:', error);
+      alert('Virhe nimen tallentamisessa');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -73,24 +103,79 @@ export default function ProfilePage() {
             </Link>
           </div>
 
-          {/* Profiilitiedot */}
-          <div className="space-y-6">
-            {/* Käyttäjän perustiedot */}
-            <div className="border border-gray-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Perustiedot</h2>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
+                      {/* Profiilitiedot */}
+            <div className="space-y-6">
+              {/* Käyttäjän perustiedot */}
+              <div className="border border-gray-200 rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Perustiedot</h2>
+                <div className="space-y-3">
+                  {/* Näytettävä nimi */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500">Näytettävä nimi</p>
+                      {isEditing ? (
+                        <div className="flex gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                            placeholder="Syötä näytettävä nimi"
+                          />
+                          <button
+                            onClick={handleSaveDisplayName}
+                            disabled={isSaving}
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {isSaving ? 'Tallennetaan...' : 'Tallenna'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditing(false);
+                              setDisplayName(profile?.display_name || "");
+                            }}
+                            className="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                          >
+                            Peruuta
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">
+                            {profile?.display_name || "Ei asetettu"}
+                          </p>
+                          <button
+                            onClick={() => setIsEditing(true)}
+                            className="text-blue-600 hover:text-blue-700 text-sm"
+                          >
+                            Muokkaa
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        Tätä nimeä käytetään kommenteissa ja muissa julkisissa näkymissä
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Sähköposti</p>
-                    <p className="font-medium text-gray-900">{user?.email}</p>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Sähköposti</p>
+                      <p className="font-medium text-gray-900">{user?.email}</p>
+                    </div>
                   </div>
-                </div>
                 
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">

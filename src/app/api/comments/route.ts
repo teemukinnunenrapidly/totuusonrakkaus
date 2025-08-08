@@ -2,48 +2,71 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sanitizeText, validateInputLength, validateUUID } from '@/lib/sanitization';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// Mock data for development
-const mockComments = [
-  {
-    id: "1",
-    course_id: "test-course",
-    section_id: "test-section",
-    user_id: "user1",
-    content: "Tämä on testikommentti",
-    parent_comment_id: null,
-    created_at: "2024-01-15T10:30:00Z",
-    updated_at: "2024-01-15T10:30:00Z",
-    is_edited: false,
-    user_email: "test@example.com",
-    user_name: "Testi Käyttäjä",
-    is_admin: false
-  },
-  {
-    id: "2",
-    course_id: "test-course",
-    section_id: "test-section",
-    user_id: "user2",
-    content: "Toinen testikommentti",
-    parent_comment_id: null,
-    created_at: "2024-01-15T11:00:00Z",
-    updated_at: "2024-01-15T11:00:00Z",
-    is_edited: false,
-    user_email: "admin@example.com",
-    user_name: "Admin Käyttäjä",
-    is_admin: true
-  }
-];
-
-const getSectionSpecificComments = (courseId: string, sectionId: string) => {
-  return mockComments.filter(comment => 
-    comment.course_id === courseId && comment.section_id === sectionId
+// Create a client that can access user sessions
+const createServerClient = (request: NextRequest) => {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
   );
+
+  // Debug: Log all cookies
+  console.log("=== COOKIE DEBUG ===");
+  request.cookies.getAll().forEach(cookie => {
+    console.log(`Cookie: ${cookie.name} = ${cookie.value.substring(0, 50)}...`);
+  });
+
+  // Get the session from Authorization header first
+  const authHeader = request.headers.get('authorization');
+  console.log("Authorization header:", authHeader);
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    console.log("Token found in Authorization header");
+    
+    // Try to get user from token directly
+    try {
+      const { data: { user }, error } = supabase.auth.getUser(token);
+      if (user && !error) {
+        console.log("User found from token:", user.email);
+        return supabase;
+      }
+    } catch (error) {
+      console.log("Error getting user from token:", error);
+    }
+    
+    // Fallback to setSession
+    supabase.auth.setSession({
+      access_token: token,
+      refresh_token: ''
+    });
+  } else {
+    // Fallback to cookies
+    const authCookie = request.cookies.get('sb-access-token')?.value || 
+                       request.cookies.get('sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/[^a-zA-Z0-9]/g, '') + '-auth-token')?.value;
+    const refreshCookie = request.cookies.get('sb-refresh-token')?.value || 
+                         request.cookies.get('sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/[^a-zA-Z0-9]/g, '') + '-refresh-token')?.value;
+
+    console.log("Auth cookie found:", !!authCookie);
+    console.log("Refresh cookie found:", !!refreshCookie);
+
+    if (authCookie) {
+      supabase.auth.setSession({
+        access_token: authCookie,
+        refresh_token: refreshCookie || ''
+      });
+    }
+  }
+
+  return supabase;
 };
+
+
 
 // GET - Hae kommentit
 export async function GET(request: NextRequest) {
@@ -67,21 +90,57 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Tarkista käyttäjän sessio
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Jos käyttäjä ei ole kirjautunut, palautetaan mock-dataa
-    if (!session) {
-      console.log("Käyttäjä ei ole kirjautunut, palautetaan mock-kommentteja");
-      const mockComments = getSectionSpecificComments(courseId, sectionId);
+    // Create admin client for database operations
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-      return NextResponse.json({ comments: mockComments });
+    // Hae kommentit tietokannasta
+    const { data: comments, error } = await adminSupabase
+      .from('comments')
+      .select('*')
+      .eq('course_id', courseId)
+      .eq('section_id', sectionId)
+      .is('parent_comment_id', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Virhe kommenttien haussa:", error);
+      return NextResponse.json(
+        { error: "Virhe kommenttien haussa" },
+        { status: 500 }
+      );
     }
 
-    // Jos käyttäjä on kirjautunut, palautetaan mock-dataa (tietokanta ei ole vielä valmis)
-    const mockComments = getSectionSpecificComments(courseId, sectionId);
+    // Muotoile kommentit frontend-ystävälliseen muotoon
+    const formattedComments = await Promise.all(
+      (comments || []).map(async (comment) => {
+        // Hae käyttäjän tiedot erikseen
+        const { data: userProfile } = await adminSupabase
+          .from('user_profiles')
+          .select('display_name, role')
+          .eq('user_id', comment.user_id)
+          .single();
 
-    return NextResponse.json({ comments: mockComments });
+        return {
+          id: comment.id,
+          content: comment.content,
+          created_at: comment.created_at,
+          updated_at: comment.updated_at,
+          is_edited: comment.updated_at !== comment.created_at,
+          user_id: comment.user_id,
+          user_email: null,
+          user_name: comment.is_anonymous ? "Anonyymi" : 
+                     (userProfile?.display_name || "Käyttäjä"),
+          is_admin: userProfile?.role === 'admin',
+          parent_comment_id: comment.parent_comment_id,
+          is_anonymous: comment.is_anonymous
+        };
+      })
+    );
+
+    return NextResponse.json({ comments: formattedComments });
   } catch (error) {
     console.error("Virhe kommenttien haussa:", error);
     return NextResponse.json(
@@ -94,8 +153,42 @@ export async function GET(request: NextRequest) {
 // POST - Lisää uusi kommentti
 export async function POST(request: NextRequest) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
     const body = await request.json();
+    
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    let user = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      console.log("Token found in Authorization header");
+      
+      // Create a client to verify the token
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      
+      try {
+        const { data: { user: tokenUser }, error } = await supabase.auth.getUser(token);
+        if (tokenUser && !error) {
+          user = tokenUser;
+          console.log("User verified from token:", user.email);
+        } else {
+          console.log("Error verifying token:", error);
+        }
+      } catch (error) {
+        console.log("Error getting user from token:", error);
+      }
+    }
+    
+    if (!user) {
+      console.log("No valid user found, returning 401");
+      return NextResponse.json(
+        { error: "Kirjautuminen vaaditaan kommentin lisäämiseen" },
+        { status: 401 }
+      );
+    }
     
     // Input validation ja sanitization
     const { courseId, sectionId, content, parentCommentId, commentType } = body;
@@ -138,59 +231,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Jos käyttäjä ei ole kirjautunut, simuloidaan kommentin lisäys
-    if (!session) {
-      console.log("Käyttäjä ei ole kirjautunut, simuloidaan kommentin lisäys");
-      const newComment = {
-        id: Date.now().toString(),
+    // Debug user
+    console.log("=== USER DEBUG ===");
+    console.log("User exists:", !!user);
+    console.log("User ID:", user?.id);
+    console.log("User email:", user?.email);
+
+
+
+    // Create admin client for database operations
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Tallenna kommentti tietokantaan
+    const { data: newComment, error: insertError } = await adminSupabase
+      .from('comments')
+      .insert({
         course_id: courseId,
         section_id: sectionId,
-        user_id: "anonymous_user",
+        user_id: user.id,
         content: sanitizedContent,
         parent_comment_id: parentCommentId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_edited: false,
-        user_email: commentType === "anonymous" ? null : "anonymous@example.com",
-        user_name: commentType === "anonymous" ? "Anonyymi" : "Käyttäjä",
-        is_admin: false
-      };
+        is_anonymous: commentType === "anonymous"
+      })
+      .select('*')
+      .single();
 
-      return NextResponse.json({ comment: newComment });
+    if (insertError) {
+      console.error("Virhe kommentin tallentamisessa:", insertError);
+      return NextResponse.json(
+        { error: "Virhe kommentin tallentamisessa" },
+        { status: 500 }
+      );
     }
 
-    // Tarkista käyttäjän admin-status tietokannasta
-    let isAdmin = false;
-    try {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .single();
-      
-      isAdmin = profile?.role === 'admin';
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      isAdmin = false;
-    }
+    // Hae käyttäjän tiedot erikseen
+    const { data: userProfile } = await adminSupabase
+      .from('user_profiles')
+      .select('display_name, role')
+      .eq('user_id', newComment.user_id)
+      .single();
 
-    // Jos käyttäjä on kirjautunut, simuloidaan kommentin lisäys
-    const newComment = {
-      id: Date.now().toString(),
-      course_id: courseId,
-      section_id: sectionId,
-      user_id: session.user.id,
-      content: sanitizedContent,
-      parent_comment_id: parentCommentId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    // Muotoile vastaus frontend-ystävälliseen muotoon
+    const formattedComment = {
+      id: newComment.id,
+      content: newComment.content,
+      created_at: newComment.created_at,
+      updated_at: newComment.updated_at,
       is_edited: false,
-      user_email: commentType === "anonymous" ? null : session.user.email,
-      user_name: commentType === "anonymous" ? "Anonyymi" : (session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || "Käyttäjä"),
-      is_admin: isAdmin
+      user_id: newComment.user_id,
+      user_email: user.email,
+      user_name: commentType === "anonymous" ? "Anonyymi" : 
+                 (userProfile?.display_name || 
+                  user.user_metadata?.full_name ||
+                  user.user_metadata?.name ||
+                  user.email?.split('@')[0] ||
+                  "Käyttäjä"),
+      is_admin: userProfile?.role === 'admin',
+      parent_comment_id: newComment.parent_comment_id,
+      is_anonymous: newComment.is_anonymous
     };
 
-    return NextResponse.json({ comment: newComment });
+    return NextResponse.json({ comment: formattedComment });
   } catch (error) {
     console.error("Virhe kommentin lisäyksessä:", error);
     return NextResponse.json(
@@ -203,6 +307,7 @@ export async function POST(request: NextRequest) {
 // PUT - Päivitä kommentti
 export async function PUT(request: NextRequest) {
   try {
+    const supabase = createServerClient(request);
     const { data: { session } } = await supabase.auth.getSession();
     const body = await request.json();
     
@@ -255,16 +360,59 @@ export async function PUT(request: NextRequest) {
       isAdmin = false;
     }
 
-    // Simuloidaan kommentin päivitys
-    const updatedComment = {
-      id: commentId,
-      content: sanitizedContent,
-      updated_at: new Date().toISOString(),
-      is_edited: true,
-      is_admin: isAdmin
+    // Create admin client for database operations
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Päivitä kommentti tietokannassa
+    const { data: updatedComment, error: updateError } = await adminSupabase
+      .from('comments')
+      .update({
+        content: sanitizedContent,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', commentId)
+      .eq('user_id', session.user.id)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      console.error("Virhe kommentin päivityksessä:", updateError);
+      return NextResponse.json(
+        { error: "Virhe kommentin päivityksessä" },
+        { status: 500 }
+      );
+    }
+
+    // Hae käyttäjän tiedot erikseen
+    const { data: userProfile } = await adminSupabase
+      .from('user_profiles')
+      .select('display_name, role')
+      .eq('user_id', updatedComment.user_id)
+      .single();
+
+    // Muotoile vastaus
+    const formattedComment = {
+      id: updatedComment.id,
+      content: updatedComment.content,
+      created_at: updatedComment.created_at,
+      updated_at: updatedComment.updated_at,
+      is_edited: updatedComment.updated_at !== updatedComment.created_at,
+      user_id: updatedComment.user_id,
+      user_email: session.user.email,
+      user_name: userProfile?.display_name || 
+                 session.user.user_metadata?.full_name ||
+                 session.user.user_metadata?.name ||
+                 session.user.email?.split('@')[0] ||
+                 "Käyttäjä",
+      is_admin: userProfile?.role === 'admin',
+      parent_comment_id: updatedComment.parent_comment_id,
+      is_anonymous: updatedComment.is_anonymous
     };
 
-    return NextResponse.json({ comment: updatedComment });
+    return NextResponse.json({ comment: formattedComment });
   } catch (error) {
     console.error("Virhe kommentin päivityksessä:", error);
     return NextResponse.json(
@@ -277,6 +425,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - Poista kommentti
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = createServerClient(request);
     const { data: { session } } = await supabase.auth.getSession();
     const { searchParams } = new URL(request.url);
     const commentId = searchParams.get("commentId");
@@ -312,10 +461,29 @@ export async function DELETE(request: NextRequest) {
       isAdmin = false;
     }
 
-    // Simuloidaan kommentin poisto
+    // Create admin client for database operations
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Poista kommentti tietokannasta
+    const { error: deleteError } = await adminSupabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId)
+      .eq('user_id', session.user.id);
+
+    if (deleteError) {
+      console.error("Virhe kommentin poistossa:", deleteError);
+      return NextResponse.json(
+        { error: "Virhe kommentin poistossa" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ 
-      message: "Kommentti poistettu onnistuneesti",
-      isAdmin: isAdmin
+      message: "Kommentti poistettu onnistuneesti"
     });
   } catch (error) {
     console.error("Virhe kommentin poistossa:", error);

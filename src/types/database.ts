@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   user_id: string;
   role: 'admin' | 'student';
+  display_name?: string;
   created_at: string;
   updated_at: string;
 }
