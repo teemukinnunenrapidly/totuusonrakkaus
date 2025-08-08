@@ -153,8 +153,8 @@ export default function KirjauduPage() {
       }
 
       console.log("Kirjautuminen onnistui:", authData);
-      console.log("Käyttäjä ID:", authData.user?.id);
-      console.log("Käyttäjä email:", authData.user?.email);
+      console.log("Käyttäjä ID:", authData?.user?.id);
+      console.log("Käyttäjä email:", authData?.user?.email);
       
       // Pysäytä loading heti
       setIsLoading(false);
