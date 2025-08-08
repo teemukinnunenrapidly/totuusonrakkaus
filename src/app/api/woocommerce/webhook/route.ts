@@ -31,9 +31,14 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
 
 async function sendPasswordEmail(email: string, firstName: string, password: string) {
   try {
+    console.log(`=== SENDING PASSWORD EMAIL ===`);
+    console.log(`To: ${email}`);
+    console.log(`From: Totuusonrakkaus <onboarding@resend.dev>`);
+    console.log(`RESEND_API_KEY exists: ${process.env.RESEND_API_KEY ? 'YES' : 'NO'}`);
+    
     const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
     
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: 'Totuusonrakkaus <onboarding@resend.dev>',
       to: email,
       subject: 'Kirjautumistiedot - Totuusonrakkaus',
@@ -99,6 +104,7 @@ async function sendPasswordEmail(email: string, firstName: string, password: str
       `
     });
     
+    console.log(`Password email result:`, result);
     console.log(`Password email sent successfully to ${email}`);
   } catch (error) {
     console.error("Error sending password email:", error);
@@ -177,7 +183,7 @@ export async function POST(request: NextRequest) {
 
     // Test database connection
     try {
-      const { data: testData, error: testError } = await supabase
+      const { error: testError } = await supabase
         .from('woo_orders')
         .select('count')
         .limit(1);
@@ -446,12 +452,18 @@ function generatePassword(): string {
   return password;
 }
 
-async function sendWelcomeEmail(email: string, firstName: string, courseName: string, userAccount?: any) {
+async function sendWelcomeEmail(email: string, firstName: string, courseName: string, userAccount?: { id: string; email?: string } | null) {
   try {
-    const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
-    const courseUrl = 'https://kurssi.totuusonrakkaus.fi/my-courses';
+    console.log(`=== SENDING WELCOME EMAIL ===`);
+    console.log(`To: ${email}`);
+    console.log(`From: Totuusonrakkaus <onboarding@resend.dev>`);
+    console.log(`RESEND_API_KEY exists: ${process.env.RESEND_API_KEY ? 'YES' : 'NO'}`);
+    console.log(`Course: ${courseName}`);
+    console.log(`User Account:`, userAccount);
     
-    await resend.emails.send({
+    const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
+    
+    const result = await resend.emails.send({
       from: 'Totuusonrakkaus <onboarding@resend.dev>',
       to: email,
       subject: `Tervetuloa kurssille: ${courseName}`,
@@ -498,20 +510,18 @@ async function sendWelcomeEmail(email: string, firstName: string, courseName: st
               <h4 style="color: #856404; margin: 0 0 10px 0;">📚 Kurssin aloittaminen:</h4>
               <ul style="color: #856404; margin: 0; padding-left: 20px;">
                 <li>Aseta salasana yllä olevalla painikkeella</li>
-                <li>Mene "Omat kurssit" -osioon</li>
+                <li>Kirjaudu sisään tilillesi</li>
+                <li>Siirry "Omat kurssit" -osioon</li>
                 <li>Aloita kurssin katselu</li>
-                <li>Voit pysäyttää ja jatkaa missä tahansa</li>
               </ul>
             </div>
             
             <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-              <h3 style="color: #333; margin: 0 0 10px 0; font-size: 16px;">Tärkeää tietoa:</h3>
-              <ul style="color: #666; margin: 0; padding-left: 20px;">
-                <li>Kurssi on saatavilla 24/7</li>
-                <li>Voit katsella kurssia milloin tahansa</li>
-                <li>Jos sinulla on kysymyksiä, ota yhteyttä tukeen</li>
-                <li>Kurssin sisältö päivittyy säännöllisesti</li>
-              </ul>
+              <h3 style="color: #333; margin: 0 0 10px 0; font-size: 16px;">Tuki:</h3>
+              <p style="color: #666; margin: 0; line-height: 1.6;">
+                Jos kohtaat ongelmia kirjautumisessa tai kurssin käytössä, 
+                ota yhteyttä tukeen: <strong>tuki@totuusonrakkaus.fi</strong>
+              </p>
             </div>
             
             <p style="color: #999; font-size: 14px; margin: 30px 0 0 0; text-align: center;">
@@ -526,6 +536,7 @@ async function sendWelcomeEmail(email: string, firstName: string, courseName: st
       `
     });
     
+    console.log(`Welcome email result:`, result);
     console.log(`Welcome email sent successfully to ${email}`);
   } catch (error) {
     console.error("Error sending welcome email:", error);

@@ -347,7 +347,7 @@ export async function PUT(request: NextRequest) {
 
     // Tarkista käyttäjän admin-status (tällä hetkellä ei käytetä)
     try {
-      const { data: profile } = await supabase
+      await supabase
         .from('user_profiles')
         .select('role')
         .eq('user_id', session.user.id)
@@ -446,7 +446,7 @@ export async function DELETE(request: NextRequest) {
 
     // Tarkista käyttäjän admin-status (tällä hetkellä ei käytetä)
     try {
-      const { data: profile } = await supabase
+      await supabase
         .from('user_profiles')
         .select('role')
         .eq('user_id', session.user.id)
