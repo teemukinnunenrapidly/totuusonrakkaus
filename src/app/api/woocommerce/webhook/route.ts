@@ -33,13 +33,13 @@ async function sendPasswordEmail(email: string, firstName: string, password: str
   try {
     console.log(`=== SENDING PASSWORD EMAIL ===`);
     console.log(`To: ${email}`);
-    console.log(`From: Totuusonrakkaus <onboarding@resend.dev>`);
+    console.log(`From: onboarding@resend.dev`);
     console.log(`RESEND_API_KEY exists: ${process.env.RESEND_API_KEY ? 'YES' : 'NO'}`);
     
     const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
     
     const result = await resend.emails.send({
-      from: 'Totuusonrakkaus <onboarding@resend.dev>',
+      from: 'onboarding@resend.dev',
       to: email,
       subject: 'Kirjautumistiedot - Totuusonrakkaus',
       html: `
@@ -456,7 +456,7 @@ async function sendWelcomeEmail(email: string, firstName: string, courseName: st
   try {
     console.log(`=== SENDING WELCOME EMAIL ===`);
     console.log(`To: ${email}`);
-    console.log(`From: Totuusonrakkaus <onboarding@resend.dev>`);
+    console.log(`From: onboarding@resend.dev`);
     console.log(`RESEND_API_KEY exists: ${process.env.RESEND_API_KEY ? 'YES' : 'NO'}`);
     console.log(`Course: ${courseName}`);
     console.log(`User Account:`, userAccount);
@@ -464,7 +464,7 @@ async function sendWelcomeEmail(email: string, firstName: string, courseName: st
     const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
     
     const result = await resend.emails.send({
-      from: 'Totuusonrakkaus <onboarding@resend.dev>',
+      from: 'onboarding@resend.dev',
       to: email,
       subject: `Tervetuloa kurssille: ${courseName}`,
       html: `
