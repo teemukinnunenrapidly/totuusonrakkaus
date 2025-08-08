@@ -34,6 +34,12 @@ interface WooCommerceOrder {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("=== WOOCOMMERCE WEBHOOK DEBUG ===");
+    console.log("Environment check:");
+    console.log("- NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "SET" : "NOT SET");
+    console.log("- SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "SET" : "NOT SET");
+    console.log("- RESEND_API_KEY:", process.env.RESEND_API_KEY ? "SET" : "NOT SET");
+    
     console.log("WooCommerce webhook received");
     
     const body = await request.json();
@@ -54,14 +60,46 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing WooCommerce order: ${order.id}`);
 
+    // Test database connection
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('woo_orders')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.error("Database connection test failed:", testError);
+        return NextResponse.json({ 
+          error: "Database connection failed", 
+          details: testError.message 
+        }, { status: 500 });
+      }
+      console.log("Database connection test successful");
+    } catch (dbError) {
+      console.error("Database connection error:", dbError);
+      return NextResponse.json({ 
+        error: "Database connection error", 
+        details: String(dbError) 
+      }, { status: 500 });
+    }
+
     // Check if order already processed
-    const { data: existingOrder } = await supabase
+    const { data: existingOrder, error: existingError } = await supabase
       .from('woo_orders')
       .select('id')
       .eq('woo_order_id', order.id)
       .single();
 
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error("Error checking existing order:", existingError);
+      return NextResponse.json({ 
+        error: "Failed to check existing order", 
+        details: existingError.message 
+      }, { status: 500 });
+    }
+
     if (existingOrder) {
+      console.log(`Order ${order.id} already processed`);
       return NextResponse.json({ message: "Order already processed" });
     }
 
@@ -96,29 +134,46 @@ export async function POST(request: NextRequest) {
 
     // Process each line item
     for (const item of order.line_items) {
+      console.log(`Processing line item: ${item.sku}`);
+      
       // Find course mapping for this SKU
-      const { data: courseMapping } = await supabase
+      const { data: courseMapping, error: mappingError } = await supabase
         .from('course_sku_mappings')
         .select('course_id, woo_product_name')
         .eq('woo_sku', item.sku)
         .eq('is_active', true)
         .single();
 
+      if (mappingError) {
+        console.error(`Error finding course mapping for SKU ${item.sku}:`, mappingError);
+        continue;
+      }
+
       if (!courseMapping) {
         console.warn(`No course mapping found for SKU: ${item.sku}`);
         continue;
       }
+
+      console.log(`Found course mapping for SKU ${item.sku}:`, courseMapping);
 
       // Create or get user
       let userId: string;
       
       // Try to get existing user by email
       const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers();
+      
+      if (getUserError) {
+        console.error("Error listing users:", getUserError);
+        continue;
+      }
+      
       const existingUser = users?.find(user => user.email === order.billing.email);
       
       if (existingUser) {
         userId = existingUser.id;
+        console.log(`Found existing user: ${existingUser.email}`);
       } else {
+        console.log(`Creating new user for email: ${order.billing.email}`);
         // Create new user
         const { data: newUser, error: userError } = await supabase.auth.admin.createUser({
           email: order.billing.email,
@@ -136,6 +191,7 @@ export async function POST(request: NextRequest) {
         }
 
         userId = newUser.user.id;
+        console.log(`Created new user with ID: ${userId}`);
       }
 
       // Insert order item
@@ -158,6 +214,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      console.log(`Order item inserted for user ${userId}`);
+
       // Create enrollment
       const { error: enrollmentError } = await supabase
         .from('student_enrollments')
@@ -176,19 +234,28 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      console.log(`Enrollment created for user ${userId} in course ${courseMapping.course_id}`);
+
       // Send welcome email
-      await sendWelcomeEmail(order.billing.email, order.billing.first_name, courseMapping.woo_product_name);
+      try {
+        await sendWelcomeEmail(order.billing.email, order.billing.first_name, courseMapping.woo_product_name);
+        console.log(`Welcome email sent to ${order.billing.email}`);
+      } catch (emailError) {
+        console.error("Error sending welcome email:", emailError);
+      }
     }
 
+    console.log("=== WOOCOMMERCE WEBHOOK COMPLETED SUCCESSFULLY ===");
     return NextResponse.json({ 
       message: "Order processed successfully",
       order_id: order.id 
     });
 
   } catch (error) {
+    console.error("=== WOOCOMMERCE WEBHOOK ERROR ===");
     console.error("Error processing WooCommerce webhook:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", details: String(error) },
       { status: 500 }
     );
   }
