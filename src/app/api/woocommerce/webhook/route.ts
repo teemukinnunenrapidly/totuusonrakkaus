@@ -29,6 +29,83 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
   }
 }
 
+async function sendPasswordEmail(email: string, firstName: string, password: string) {
+  try {
+    const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
+    
+    await resend.emails.send({
+      from: 'Totuusonrakkaus <onboarding@resend.dev>',
+      to: email,
+      subject: 'Kirjautumistiedot - Totuusonrakkaus',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Totuusonrakkaus</h1>
+            <p style="color: white; margin: 10px 0 0 0; opacity: 0.9;">Kirjautumistiedot</p>
+          </div>
+          
+          <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="color: #333; margin: 0 0 20px 0;">Hei ${firstName}!</h2>
+            
+            <p style="color: #666; line-height: 1.6; margin: 0 0 20px 0;">
+              Tilillesi on luotu kirjautumistiedot. Tässä ovat tiedot:
+            </p>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #333; margin-top: 0;">Kirjautumistiedot:</h3>
+              <p style="color: #666; margin: 5px 0;"><strong>Sähköposti:</strong> ${email}</p>
+              <p style="color: #666; margin: 5px 0;"><strong>Salasana:</strong> ${password}</p>
+            </div>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="color: #856404; margin: 0; font-size: 14px;">
+                <strong>⚠️ Tärkeää:</strong> Säilytä nämä tiedot turvallisesti. 
+                Jos unohdat salasanasi, voit palauttaa sen kirjautumissivulla.
+              </p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" 
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; 
+                        padding: 15px 30px; 
+                        text-decoration: none; 
+                        border-radius: 5px; 
+                        display: inline-block; 
+                        font-weight: bold;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                Kirjaudu sisään
+              </a>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="color: #333; margin: 0 0 10px 0; font-size: 16px;">Tietoturva:</h3>
+              <ul style="color: #666; margin: 0; padding-left: 20px;">
+                <li>Älä jaa kirjautumistietojasi muiden kanssa</li>
+                <li>Kirjaudu ulos julkisilla tietokoneilla</li>
+                <li>Jos epäilet tietoturvaongelmia, ota yhteyttä tukeen</li>
+              </ul>
+            </div>
+            
+            <p style="color: #999; font-size: 14px; margin: 30px 0 0 0; text-align: center;">
+              Tämä viesti on lähetetty automaattisesti. Älä vastaa siihen.
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
+            <p>© 2024 Totuusonrakkaus. Kaikki oikeudet pidätetään.</p>
+          </div>
+        </div>
+      `
+    });
+    
+    console.log(`Password email sent successfully to ${email}`);
+  } catch (error) {
+    console.error("Error sending password email:", error);
+    throw error;
+  }
+}
+
 interface WooCommerceOrder {
   id: number;
   order_key: string;
@@ -254,11 +331,71 @@ export async function POST(request: NextRequest) {
 
       console.log(`Order item inserted for user ${userId}`);
 
+      // Create or get user account
+      let userAccount = null;
+      try {
+        // Check if user already exists
+        const { data: existingUser } = await supabase.auth.admin.listUsers();
+        const user = existingUser.users.find(u => u.email === order.billing.email);
+        
+        if (user) {
+          userAccount = user;
+          console.log(`Existing user found: ${user.email}`);
+        } else {
+          // Create new user account
+          const password = generatePassword();
+          const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+            email: order.billing.email,
+            password: password,
+            email_confirm: true,
+            user_metadata: {
+              first_name: order.billing.first_name,
+              last_name: order.billing.last_name || '',
+              source: 'woocommerce'
+            }
+          });
+
+          if (createError) {
+            console.error("Error creating user account:", createError);
+            continue;
+          }
+
+          userAccount = newUser.user;
+          console.log(`New user account created: ${userAccount.email}`);
+
+          // Create user profile
+          const { error: profileError } = await supabase
+            .from('user_profiles')
+            .insert({
+              user_id: userAccount.id,
+              role: 'student',
+              display_name: `${order.billing.first_name} ${order.billing.last_name || ''}`.trim(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+
+          if (profileError) {
+            console.error("Error creating user profile:", profileError);
+          }
+
+          // Send password email for new users
+          try {
+            await sendPasswordEmail(order.billing.email, order.billing.first_name, password);
+            console.log(`Password email sent to ${order.billing.email}`);
+          } catch (passwordEmailError) {
+            console.error("Error sending password email:", passwordEmailError);
+          }
+        }
+      } catch (userError) {
+        console.error("Error handling user account:", userError);
+        continue;
+      }
+
       // Create enrollment
       const { error: enrollmentError } = await supabase
         .from('student_enrollments')
         .upsert({
-          user_id: userId,
+          user_id: userAccount.id,
           course_id: courseMapping.course_id,
           woo_order_id: wooOrder.id,
           status: 'active',
@@ -272,11 +409,11 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      console.log(`Enrollment created for user ${userId} in course ${courseMapping.course_id}`);
+      console.log(`Enrollment created for user ${userAccount.id} in course ${courseMapping.course_id}`);
 
       // Send welcome email
       try {
-        await sendWelcomeEmail(order.billing.email, order.billing.first_name, courseMapping.woo_product_name);
+        await sendWelcomeEmail(order.billing.email, order.billing.first_name, courseMapping.woo_product_name, userAccount);
         console.log(`Welcome email sent to ${order.billing.email}`);
       } catch (emailError) {
         console.error("Error sending welcome email:", emailError);
@@ -309,33 +446,89 @@ function generatePassword(): string {
   return password;
 }
 
-async function sendWelcomeEmail(email: string, firstName: string, courseName: string) {
+async function sendWelcomeEmail(email: string, firstName: string, courseName: string, userAccount?: any) {
   try {
+    const loginUrl = 'https://kurssi.totuusonrakkaus.fi/login';
+    const courseUrl = 'https://kurssi.totuusonrakkaus.fi/my-courses';
+    
     await resend.emails.send({
-      from: 'noreply@verkkokurssialusta.fi',
+      from: 'Totuusonrakkaus <onboarding@resend.dev>',
       to: email,
       subject: `Tervetuloa kurssille: ${courseName}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1f2937;">Tervetuloa kurssille!</h2>
-          <p>Hei ${firstName},</p>
-          <p>Kiitos kurssin ostamisesta! Olet nyt kirjautunut kurssille <strong>${courseName}</strong>.</p>
-          
-          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0;">Kirjautumistiedot:</h3>
-            <p><strong>Sähköposti:</strong> ${email}</p>
-            <p><strong>Salasana:</strong> [Salasana lähetetään erikseen]</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Totuusonrakkaus</h1>
+            <p style="color: white; margin: 10px 0 0 0; opacity: 0.9;">Tervetuloa kurssille!</p>
           </div>
           
-          <p>Voit kirjautua sisään osoitteessa: <a href="https://verkkokurssialusta.fi/login">https://verkkokurssialusta.fi/login</a></p>
+          <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <h2 style="color: #333; margin: 0 0 20px 0;">Hei ${firstName}!</h2>
+            
+            <p style="color: #666; line-height: 1.6; margin: 0 0 20px 0;">
+              Kiitos kurssin ostamisesta! Olet nyt kirjautunut kurssille <strong>${courseName}</strong>.
+            </p>
+            
+            <div style="background: #e8f5e8; border: 1px solid #4caf50; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #2e7d32; margin-top: 0;">✅ Kurssi aktivoitu!</h3>
+              <p style="color: #2e7d32; margin: 0;">Kurssi on nyt saatavilla tililläsi.</p>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #333; margin-top: 0;">Kirjautumistiedot:</h3>
+              <p style="color: #666; margin: 5px 0;"><strong>Sähköposti:</strong> ${email}</p>
+              ${userAccount ? `<p style="color: #666; margin: 5px 0;"><strong>Salasana:</strong> [Salasana lähetetään erikseen]</p>` : ''}
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" 
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; 
+                        padding: 15px 30px; 
+                        text-decoration: none; 
+                        border-radius: 5px; 
+                        display: inline-block; 
+                        font-weight: bold;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                Kirjaudu sisään
+              </a>
+            </div>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <h4 style="color: #856404; margin: 0 0 10px 0;">📚 Kurssin aloittaminen:</h4>
+              <ul style="color: #856404; margin: 0; padding-left: 20px;">
+                <li>Kirjaudu sisään yllä olevalla painikkeella</li>
+                <li>Mene "Omat kurssit" -osioon</li>
+                <li>Aloita kurssin katselu</li>
+                <li>Voit pysäyttää ja jatkaa missä tahansa</li>
+              </ul>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="color: #333; margin: 0 0 10px 0; font-size: 16px;">Tärkeää tietoa:</h3>
+              <ul style="color: #666; margin: 0; padding-left: 20px;">
+                <li>Kurssi on saatavilla 24/7</li>
+                <li>Voit katsella kurssia milloin tahansa</li>
+                <li>Jos sinulla on kysymyksiä, ota yhteyttä tukeen</li>
+                <li>Kurssin sisältö päivittyy säännöllisesti</li>
+              </ul>
+            </div>
+            
+            <p style="color: #999; font-size: 14px; margin: 30px 0 0 0; text-align: center;">
+              Tämä viesti on lähetetty automaattisesti. Älä vastaa siihen.
+            </p>
+          </div>
           
-          <p>Jos sinulla on kysymyksiä, ota yhteyttä tukeen.</p>
-          
-          <p>Ystävällisin terveisin,<br>Verkkokurssialusta-tiimi</p>
+          <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
+            <p>© 2024 Totuusonrakkaus. Kaikki oikeudet pidätetään.</p>
+          </div>
         </div>
       `
     });
+    
+    console.log(`Welcome email sent successfully to ${email}`);
   } catch (error) {
     console.error("Error sending welcome email:", error);
+    throw error;
   }
 }
